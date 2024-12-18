@@ -5,7 +5,7 @@
 - REST API
 - Authentication and Cookies
 - S3 integration
-- SQL with SQLite
+- SQL with PostgreSQL
 - Hexagonal Architecture
 - Logging
 - Testing
@@ -42,7 +42,7 @@ You will create a simplified v3rsion of imageb0ard (@ kind 0f simpl3 f0ru|\/|) f
 
 - Previous Project: [triple-s](https://github.com/alem-platform/foundation/blob/main/triple-s/README.md)
 - Read about Hexagonal architecture [here](https://alistair.cockburn.us/hexagonal-architecture/)
-- Read about [SQLite](https://www.sqlite.org/docs.html) and [go-sqlite3](https://github.com/mattn/go-sqlite3)
+- Read about [PostgreSQL](https://www.postgresql.org/docs/)
 - Read about [🍪](https://datatracker.ietf.org/doc/html/rfc6265)
 
 ## General Criteria
@@ -50,7 +50,7 @@ You will create a simplified v3rsion of imageb0ard (@ kind 0f simpl3 f0ru|\/|) f
 - Your code MUST be written in accordance with [gofumpt](https://github.com/mvdan/gofumpt). If not, you will be graded `0` automatically.
 - Your program MUST be able to compile successfully.
 - Your program MUST not exit unexpectedly (any panics: `nil-pointer dereference`, `index out of range` etc.). If so, you will get `0` during the defence.
-- External packages are allowed only for working with the database `github.com/mattn/go-sqlite3`). If you use any other external packages, you will receive a grade of `0`.
+- External packages are allowed only for working with the database. If you use any other external packages, you will receive a grade of `0`.
 - The test coverage of your project's code must be at least 20%. A lower percentage means `0` points for your project.
 - The project MUST be compiled by the following command in the project's root directory:
 
@@ -87,7 +87,7 @@ Examples:
   - It defines interfaces (ports) for actions like storing data or fetching avatars but doesn't specify how these actions are implemented.
 - **Infrastructure Layer (Adapters):**
   - This layer provides concrete implementations of the interfaces defined in the domain layer.
-  - **Database Adapter**: Implements data persistence using SQLite. If you decide to switch databases in the future, you only need to change this adapter without affecting the core logic.
+  - **Database Adapter**: Implements data persistence using PostgreSQL. If you decide to switch databases in the future, you only need to change this adapter without affecting the core logic.
   - **S3 Adapter**: Handles image storage in an S3-compatible service. The domain layer simply calls a method to store or retrieve images without knowing the underlying storage mechanism.
   - **External API Adapter**: Manages communication with the Rick and Morty API to fetch user avatars. If the avatar source changes, you can update or replace this adapter accordingly.
 - **User Interface Layer**:
@@ -160,7 +160,7 @@ You will be provided with 6 templates (read [here](https://pkg.go.dev/text/templ
 - Сomments should display your comment ID and user avatar.
 
 #### Data Storage 
-- Use SQLite to store posts, comments, user sessions, and any necessary metadata.
+- Use PostgreSQL to store posts, comments, user sessions, and any necessary metadata.
 - Use S3-compatible storage for images attached to posts and comments (use at least 2 buckets). You have to use your code from the previous `triple-s` project (alternatively, you can use [MinIO](https://github.com/minio/minio)). You can improve on your previous project.
 - Ensure that image uploads are validated and securely handled.
 
@@ -168,9 +168,9 @@ You will be provided with 6 templates (read [here](https://pkg.go.dev/text/templ
 
 #### General Functionality
 - Implement a RESTful API server in Go that serves the provided frontend.
-- Use only the standard Go library and `github.com/mattn/go-sqlite3` for SQLite database interactions.
+- Use only the standard Go library and library(s) for PostgreSQL database interactions.
 - Utilize the `log/slog` package from the standard library for logging.
-- Store posts and comments in an SQLite database.
+- Store posts and comments in an PostgreSQL database.
 - Store images attached to posts and comments in S3-compatible storage (use you previous [project](https://github.com/alem-platform/foundation/blob/main/triple-s/README.md)).
 - No user registration; users are identified via browser [sessions](https://en.wikipedia.org/wiki/Session_(computer_science)) ([cookies](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies)).
 - Assign each user a unique avatar from the Rick and Morty universe, retrieved via [The Rick and Morty API](https://rickandmortyapi.com/).
@@ -189,7 +189,7 @@ Focus on writing unit tests for core functionalities such as:
 
 - Creating posts and comments
 - Managing user sessions, avatars and names
-- Interacting with the SQLite database
+- Interacting with the PostgreSQL database
 - Integrating with external services like S3 storage and The Rick and Morty API
 
 By implementing these tests, you will:
