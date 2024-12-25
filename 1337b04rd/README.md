@@ -212,7 +212,7 @@ go test -v ./...
 
 - Make sure that all your test files follow the naming convention `*_test.go`.
 - The `./...` command tells Go to check the current directory and all subdirectories for tests.
-
+- Сheck out [this](https://go.dev/doc/tutorial/add-a-test) article.
 
 ### Usage
 
