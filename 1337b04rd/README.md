@@ -135,6 +135,8 @@ You will be provided with 6 templates (read [here](https://pkg.go.dev/text/templ
 - Sessions should have an appropriate expiration time (1 week).
 - Associate user data (e.g., avatar assignment) with their session.
 
+For more details, refer to [secure cookie configuration](https://developer.mozilla.org/en-US/docs/Web/Security/Practical_implementation_guides/Cookies) .
+
 #### User Identification, Avatars and Names
 
   - Users are tracked via browser sessions using cookies.
