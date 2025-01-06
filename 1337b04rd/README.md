@@ -118,7 +118,7 @@ You will be provided with 6 templates (read [here](https://pkg.go.dev/text/templ
 - `post.html`: When a user clicks on a thread from the main page (`catalog.html`) or archive page (`archive.html`), they are taken to this page.
   - Displays the post (title, text, post ID, image if available) and its comments.
   - Users can add comments to the post.
-  - Each user is assigned a unique avatar and name (name can be changed) from The Rick and Morty AP, identified via cookies.
+  - Each user is assigned a unique avatar and name (name can be changed) from The Rick and Morty API, identified via cookies.
   - Avatars are unique per user; if all avatars are used, they can be reused (you need to find out how many avatars are provided by the API in total).
   - Users can reply to specific posts or comments by clicking on their IDs.
   - Comments indicate which post or comment they are responding to (use IDs).
