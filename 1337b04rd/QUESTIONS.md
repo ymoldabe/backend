@@ -59,7 +59,7 @@
 - [ ] No
 
 ## Data Storage
-### Does the application correctly store data in SQLite?
+### Does the application correctly store data in PostgreSQL?
 - [ ] Yes
 - [ ] No
 
