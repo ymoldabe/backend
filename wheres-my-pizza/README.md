@@ -194,7 +194,8 @@ Environment:
 ## Support
 
 Focus first on **outbox -> RabbitMQ -> inbox** happy path.
-Once solid, add retry/DLQ, then history API, then tests.
+Before coding, write a minimal failing test that asserts this flow works end-to-end.
+Once solid, add retry/DLQ, then history API, then expand the test suite accordingly.
 
 Good luck.
 
@@ -202,11 +203,12 @@ Good luck.
 
 ## Guidelines from Author
 
-1. Implement database schema and outbox publisher.
-2. Wire minimal consumer in `kitchen`; emit `Boxed`.
-3. Add `delivery` with payment simulation.
-4. Introduce retry exchange & DLQ.
-5. Write e2e tests with **Testcontainers-go**.
+1. Tests first. Spin up PostgreSQL + RabbitMQ with Testcontainers-go and create unit/contract/e2e tests that should fail until each step is implemented.
+2. Implement database schema and outbox publisher.
+3. Wire minimal consumer in `kitchen`; emit `Boxed`.
+4. Add `delivery` with payment simulation.
+5. Introduce retry exchange & DLQ.
+6. Write e2e tests with **Testcontainers-go**.
 
 ---
 
