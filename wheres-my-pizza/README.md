@@ -16,7 +16,7 @@ This project will teach you that before you start writing code, you should think
 
 ## Context
 
-> you can’t polish your way out of bad architecture
+> You can’t polish your way out of bad architecture.
 >
 
 The challenge we've chosen may seem unique, but at its core lies the common structure of many other distributed systems: data comes in, gets processed by various components, and is passed along the chain.
@@ -31,7 +31,7 @@ A smart way to solve this type of problem is using message queue patterns. This 
 
 **Work Queue Pattern**
 - One producer sends tasks to a queue
-- Multiple consumers compete to receive tasks
+- Multiple consumers wait for the task to arrive, but only one receives it.
 - Each task is processed by exactly one consumer
 - Provides load distribution among workers
 
