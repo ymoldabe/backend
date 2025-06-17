@@ -1,157 +1,312 @@
-## Architecture (Hexagon / Ports & Adapters)
-
-### Services are split into inbound/outbound ports and pure domain packages
+## Project Setup and Compilation
+### Does the program compile successfully with `go build -o restaurant-system .`?
 - [ ] Yes
 - [ ] No
 
-### `api-gateway`, `kitchen`, `delivery` are built as **three independent Go binaries**
+### Does the code follow gofumpt formatting standards?
 - [ ] Yes
 - [ ] No
 
-### No import cycles: upper layers never import lower ones
+### Does the program exit with a non-zero status code and clear error message when invalid arguments are provided?
 - [ ] Yes
 - [ ] No
 
-### All third-party tech (`pgx`, `amqp091-go`) are wrapped in adapters
+### Does the program handle runtime errors gracefully without crashing?
 - [ ] Yes
 - [ ] No
 
-## PostgreSQL & Transactional Outbox
-
-### `init.sql` creates every table, enum `order_status`, indexes
+### Is the program free of external packages except for the official AMQP client (github.com/rabbitmq/amqp091-go)?
 - [ ] Yes
 - [ ] No
 
-### Order insert **and** first outbox event happen in one SQL transaction
+## Basic Functionality (Baseline)
+### Does the program accept orders through REST API?
 - [ ] Yes
 - [ ] No
 
-### Unpublished events are selected with `FOR UPDATE SKIP LOCKED`
+### Does the program correctly connect to RabbitMQ server?
 - [ ] Yes
 - [ ] No
 
-### `published_at` is set only after broker **ACK**
+### Does the program use RabbitMQ work queue pattern to distribute orders among cooks?
 - [ ] Yes
 - [ ] No
 
-### Inbox tables use `PRIMARY KEY(event_id)` + `ON CONFLICT DO NOTHING`
+### Does the program handle order data correctly (order ID, dishes list, customer information, order type)?
 - [ ] Yes
 - [ ] No
 
-## RabbitMQ – Topology, QoS, Retry, DLQ
-
-### Exchanges / queues exactly match the declared topology
+### Does the program acknowledge orders only after successful processing?
 - [ ] Yes
 - [ ] No
 
-### Prefetch is applied via `basic.Qos(<RMQ_PREFETCH>, 0, true)`
+### Does the program enforce maximum 50 concurrent orders constraint?
 - [ ] Yes
 - [ ] No
 
-### NACK → retry → TTL → source-exchange path works as specified
+### Does each order get processed exactly once?
 - [ ] Yes
 - [ ] No
 
-### Separate retry exchange **or** routing-key namespace for commands vs events
+## Multiple Workers Implementation
+### Does the program support multiple cooks working simultaneously?
 - [ ] Yes
 - [ ] No
 
-### After max retries the message is routed to `orders.dlq.q`
+### Does the program distribute orders evenly among available cooks using round-robin?
 - [ ] Yes
 - [ ] No
 
-### All publishes use **Publisher Confirms**
+### Can new cooks connect dynamically without affecting the system?
 - [ ] Yes
 - [ ] No
 
-## HTTP API
-
-### `POST /orders` and `GET /orders/{id}` implemented
+### Does the program enforce maximum 10 cooks simultaneously constraint?
 - [ ] Yes
 - [ ] No
 
-### Error responses are JSON with `"error"` field
+### Does each cook have a unique ID?
 - [ ] Yes
 - [ ] No
 
-### Query param `force_payment_fail` accepted **only in DEV**
+### Are unacknowledged messages redirected to other cooks when a cook disconnects?
 - [ ] Yes
 - [ ] No
 
-### API never leaks sensitive data (PII) in payloads
+## Order Status Tracking
+### Does the program implement order status tracking system?
 - [ ] Yes
 - [ ] No
 
-## Configuration / Deployment
-
-### All settings come from **environment variables**; only `--help` flag exists
+### Does the program use publish/subscribe pattern (fanout exchange) for notifications?
 - [ ] Yes
 - [ ] No
 
-### `docker compose up` boots everything; app works end-to-end
+### Does the program track all required statuses (received, cooking, ready, delivered)?
 - [ ] Yes
 - [ ] No
 
-### Services handle `SIGINT`/`SIGTERM`, drain consumers and finish gracefully
+### Do notifications contain order_id, status, and timestamp?
 - [ ] Yes
 - [ ] No
 
-### Startup errors exit with non-zero code and clear message
+### Does the program provide API endpoint for checking order status?
 - [ ] Yes
 - [ ] No
 
-## Logging & Observability
-
-### `log/slog` used with structured fields (`order_id`, `event`)
+### Can clients query the status of their orders?
 - [ ] Yes
 - [ ] No
 
-### Log levels: **Info** on publish  /  **Warn** on retry  /  **Error** on DLQ
+## Order Types and Routing
+### Does the program support all three order types (dine-in, takeout, delivery)?
 - [ ] Yes
 - [ ] No
 
-### Prometheus/expvar metrics expose DLQ rate and publish latency
+### Does the program use topic exchange with correct routing keys (orders.kitchen.{type})?
 - [ ] Yes
 - [ ] No
 
-## Testing
-
-### Unit tests cover pure business logic (no RabbitMQ / PG)
+### Does the program implement different cooking times for different order types?
 - [ ] Yes
 - [ ] No
 
-### Contract tests validate JSON schema of events
+### Does the program validate order type on creation?
 - [ ] Yes
 - [ ] No
 
-### End-to-end tests (Testcontainers-go) cover all 5 required scenarios
+### Do delivery orders require and validate address information?
 - [ ] Yes
 - [ ] No
 
-### Retry TTL is overridden ≤ 100 ms; full `go test ./...` finishes < 30 s
+### Can cooks listen to specific order types only?
 - [ ] Yes
 - [ ] No
 
-## Code Quality
-
-### Passes `gofumpt`; uses only stdlib + `amqp091-go` + `pgx`
+## Priority Queue Implementation
+### Does the program support order prioritization using RabbitMQ priority queues?
 - [ ] Yes
 - [ ] No
 
-### No cyclic imports or unnecessary global state
+### Are queues configured with x-max-priority parameter?
 - [ ] Yes
 - [ ] No
 
-## Documentation
-
-### README contains the provided **Mermaid** topology diagram
+### Does the program implement correct priority levels (1-normal, 5-medium, 10-high)?
 - [ ] Yes
 - [ ] No
 
-### Steps to reproduce locally are clear and complete
+### Are VIP clients automatically assigned high priority?
 - [ ] Yes
 - [ ] No
 
+### Are large orders (>$50) automatically assigned medium priority?
+- [ ] Yes
+- [ ] No
+
+### Can urgent orders be manually marked as priority?
+- [ ] Yes
+- [ ] No
+
+### Do cooks receive orders in priority order?
+- [ ] Yes
+- [ ] No
+
+## Service Modes Implementation
+### Does the program implement order-service mode with REST API?
+- [ ] Yes
+- [ ] No
+
+### Does the program implement kitchen-worker mode?
+- [ ] Yes
+- [ ] No
+
+### Does the program implement tracking-service mode?
+- [ ] Yes
+- [ ] No
+
+### Does the program implement notification-subscriber mode?
+- [ ] Yes
+- [ ] No
+
+### Does the program support --setup-queues command for RabbitMQ initialization?
+- [ ] Yes
+- [ ] No
+
+## Configuration and Command Line Arguments
+### Does the program support --help flag with comprehensive usage information?
+- [ ] Yes
+- [ ] No
+
+### Does the program support --rabbitmq connection parameter?
+- [ ] Yes
+- [ ] No
+
+### Does the program support --port parameter for order service?
+- [ ] Yes
+- [ ] No
+
+### Does the program support --worker-id parameter for kitchen workers?
+- [ ] Yes
+- [ ] No
+
+### Does the program support --order-types parameter for selective processing?
+- [ ] Yes
+- [ ] No
+
+### Does the program support --customer parameter for notification subscription?
+- [ ] Yes
+- [ ] No
+
+## Error Handling and Reliability
+### Does the program handle RabbitMQ connection failures gracefully?
+- [ ] Yes
+- [ ] No
+
+### Does the program implement proper error messages with clear reasons?
+- [ ] Yes
+- [ ] No
+
+### Does the program handle invalid JSON in API requests?
+- [ ] Yes
+- [ ] No
+
+### Does the program handle missing required fields in orders?
+- [ ] Yes
+- [ ] No
+
+### Does the program handle network disconnections properly?
+- [ ] Yes
+- [ ] No
+
+### Does the program implement proper cleanup on shutdown?
+- [ ] Yes
+- [ ] No
+
+## API Endpoints
+### Does the program implement POST /orders endpoint for order creation?
+- [ ] Yes
+- [ ] No
+
+### Does the program implement GET /orders/{id}/status endpoint?
+- [ ] Yes
+- [ ] No
+
+### Do API responses follow the specified JSON format?
+- [ ] Yes
+- [ ] No
+
+### Does the program handle HTTP request validation properly?
+- [ ] Yes
+- [ ] No
+
+### Does the program return appropriate HTTP status codes?
+- [ ] Yes
+- [ ] No
+
+## RabbitMQ Integration
+### Does the program properly declare and configure exchanges?
+- [ ] Yes
+- [ ] No
+
+### Does the program properly declare and configure queues?
+- [ ] Yes
+- [ ] No
+
+### Does the program implement proper message acknowledgment?
+- [ ] Yes
+- [ ] No
+
+### Does the program handle RabbitMQ channel closures?
+- [ ] Yes
+- [ ] No
+
+### Does the program implement proper connection recovery?
+- [ ] Yes
+- [ ] No
+
+## Concurrency and Performance
+### Does the program handle concurrent order processing efficiently?
+- [ ] Yes
+- [ ] No
+
+### Does the program prevent race conditions in shared resources?
+- [ ] Yes
+- [ ] No
+
+### Does the program implement proper resource cleanup?
+- [ ] Yes
+- [ ] No
+
+### Does the program maintain performance under load?
+- [ ] Yes
+- [ ] No
+
+## Project Defense
+
+### Can the team explain their RabbitMQ exchange and queue design decisions?
+- [ ] Yes
+- [ ] No
+
+### Can the team explain how they implemented message routing patterns?
+- [ ] Yes
+- [ ] No
+
+### Can the team demonstrate understanding of work queue vs pub/sub patterns?
+- [ ] Yes
+- [ ] No
+
+### Can the team explain their error handling and reliability approach?
+- [ ] Yes
+- [ ] No
+
+### Can the team demonstrate the system working with multiple workers?
+- [ ] Yes
+- [ ] No
+
+### Can the team explain how they implemented priority queues?
+- [ ] Yes
+- [ ] No
 
 ## Detailed Feedback
 

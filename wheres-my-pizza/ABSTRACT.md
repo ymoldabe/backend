@@ -2,19 +2,14 @@
 
 ## Learning Objectives
 
-- Event-driven architecture
-- RabbitMQ: work-queue, fan-out, dead-letter / retry queues, manual **ACK/NACK + QoS**
-- Exchange types & routing keys
-- Transactional Outbox pattern (**events** table) + PostgreSQL
-- Idempotent message processing (Inbox tables)
-- Docker-Compose orchestration
-- Unit, contract & end-to-end testing
-
----
+- Message Queue Systems
+- RabbitMQ Integration
+- Concurrent Programming
 
 ## Abstract
 
-Build **wheres-my-pizza**, a three-service Go application that tracks a pizza order from placement to delivery.
-All inter-service communication happens through RabbitMQ events—**no synchronous HTTP**.
-A single transactional outbox keeps the DB and broker consistent; consumers stay idempotent via inbox tables.
-The public REST API is **read-only** and lets clients query order status and full event history.
+In this project, you will build a restaurant order management system using RabbitMQ as a message broker. The system simulates a real restaurant workflow where orders go through various processing stages: received -> cooking -> ready -> delivered.
+
+Similar systems are used in real restaurants and food delivery services. For example, when you order food through an app, your order goes through an analogous processing system with task distribution among different staff members.
+
+This project will teach you that before you start writing code, you should think through the system architecture, understand how components will interact, and only then proceed to implementation.

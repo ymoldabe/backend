@@ -1,4 +1,4 @@
-# Restaurant Order Management System with RabbitMQ
+# wheres-my-pizza
 
 ## Learning Objectives
 
@@ -82,7 +82,7 @@ This approach gives us a clear path forward. By focusing on these key requiremen
 - Your code MUST be written in accordance with [gofumpt](https://github.com/mvdan/gofumpt). If not, you will automatically receive a score of `0`.
 - Your program MUST compile successfully.
 - Your program MUST NOT crash unexpectedly (any panics: `nil-pointer dereference`, `index out of range`, etc.). If this happens, you will receive `0` points during defense.
-- Only built-in Go packages and the official AMQP client (`github.com/rabbitmq/amqp091-go`) are allowed. If other packages are used, you will receive a score of `0`.
+- Only built-in Go packages, `pgx/v5` and the official AMQP client (`github.com/rabbitmq/amqp091-go`) are allowed. If other packages are used, you will receive a score of `0`.
 - RabbitMQ server MUST be running and available for connection.
 - The project MUST compile with the following command in the project root directory:
 
