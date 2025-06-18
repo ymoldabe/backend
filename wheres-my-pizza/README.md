@@ -5,10 +5,11 @@
 - Message Queue Systems
 - RabbitMQ Integration
 - Concurrent Programming
+- Microservices Architecture
 
 ## Abstract
 
-In this project, you will build a restaurant order management system using RabbitMQ as a message broker. The system simulates a real restaurant workflow where orders go through various processing stages: received -> cooking -> ready -> delivered.
+In this project, you will build a restaurant order management system using RabbitMQ as a message broker and PostgreSQL for persistent storage. The system simulates a real restaurant workflow where orders go through various processing stages: received -> cooking -> ready -> delivered.
 
 Similar systems are used in real restaurants and food delivery services. For example, when you order food through an app, your order goes through an analogous processing system with task distribution among different staff members.
 
@@ -16,7 +17,7 @@ This project will teach you that before you start writing code, you should think
 
 ## Context
 
-> You can’t polish your way out of bad architecture.
+> You can't polish your way out of bad architecture.
 >
 
 The challenge we've chosen may seem unique, but at its core lies the common structure of many other distributed systems: data comes in, gets processed by various components, and is passed along the chain.
@@ -71,11 +72,198 @@ Let's call the combination of an order and its current state a "processing stage
 
 This approach gives us a clear path forward. By focusing on these key requirements, we can design a solution that is both elegant and efficient.
 
+## System Architecture
+
+### Service Responsibilities
+
+**Order Service**
+- Accept HTTP requests for new orders
+- Validate order data and calculate totals
+- Store orders in PostgreSQL
+- Publish orders to RabbitMQ kitchen queue
+- Provide order status API endpoints
+
+**Kitchen Workers**
+- Consume orders from kitchen queue
+- Simulate cooking process
+- Update order status in database
+- Publish status updates to notification exchange
+
+**Tracking Service**
+- Monitor order status changes
+- Handle status update requests
+- Provide centralized status tracking
+- Log all status transitions
+
+**Notification Subscriber**
+- Listen for status update notifications
+- Filter notifications by customer
+- Display real-time status updates
+
+## Database Schema
+
+### Orders Table
+
+```sql
+create table orders (
+    "id"                uuid          primary key default gen_random_uuid(),
+    "created_at"        timestamptz   not null    default now(),
+    "updated_at"        timestamptz   not null    default now(),
+    "number"            varchar(20)   unique not null,
+    "customer_name"     varchar(100)  not null,
+    "customer_type"     varchar(10)   default 'regular',
+    "type"        varchar(10)   not null check (order_type in ('dine-in', 'takeout', 'delivery')),
+    "table_number"      integer,
+    "delivery_address"  text,
+    "total_amount"      decimal(10,2) not null,
+    "priority"          integer       default 1,
+    "status"            varchar(20)   default 'received',
+    "processed_by"      varchar(50),
+    "completed_at"      timestamptz
+);
+```
+
+### Order Items Table
+
+```sql
+CREATE TABLE order_items (
+    "id"          uuid          primary key default gen_random_uuid(),
+    "created_at"  timestamptz   not null    default now(),
+    "order_id"    varchar(20)   references orders(id),
+    "name"        varchar(100)  not null,
+    "quantity"    integer       not null,
+    "price"       decimal(8,2)  not null
+);
+```
+
+### Order Status Log Table
+
+```sql
+create table order_status_log (
+    "id"          uuid          primary key default gen_random_uuid(),
+    "created_at"  timestamptz   not null    default now(),
+    order_id      varchar(20)   references orders(id),
+    "status"      varchar(20),
+    "changed_by"  varchar(50),
+    "changed_at"  timestamp     default current_timestamp,
+    "notes"       text
+);
+```
+
+### Workers Table
+
+```sql
+create table workers (
+    "id"                uuid        primary key default gen_random_uuid(),
+    "created_at"        timestamptz not null    default now(),
+    "name"              varchar(50) unique not null,
+    "type"              varchar(20) not null,
+    "status"            varchar(10) default 'online',
+    "last_seen"         timestamp   default current_timestamp,
+    "orders_processed"  integer     default 0
+);
+```
+
+## RabbitMQ Configuration
+
+### Exchanges and Queues Setup
+
+```
+Exchanges:
+├── orders_direct (type: direct, durable: true)
+│   └── Routing Keys:
+│       ├── kitchen.dine-in
+│       ├── kitchen.takeout
+│       └── kitchen.delivery
+│
+└── notifications_fanout (type: fanout, durable: true)
+    └── Broadcasts to all subscribers
+
+Queues:
+├── kitchen_queue (durable: true, x-max-priority: 10)
+├── kitchen_dine_in_queue (durable: true, x-max-priority: 10)
+├── kitchen_takeout_queue (durable: true, x-max-priority: 10)
+├── kitchen_delivery_queue (durable: true, x-max-priority: 10)
+└── notifications_queue (durable: true, auto-delete: false)
+```
+
+### Message Formats
+
+**Order Message**
+```json
+{
+  "order_number": "ORD_20241216_001",
+  "customer_name": "John Doe",
+  "customer_type": "vip",
+  "order_type": "delivery",
+  "table_number": null,
+  "delivery_address": "123 Main St, City",
+  "items": [
+    {
+      "name": "Margherita Pizza",
+      "quantity": 1,
+      "price": 15.99
+    }
+  ],
+  "total_amount": 15.99,
+  "priority": 10
+}
+```
+
+**Status Update Message**
+```json
+{
+  "order_number": "ORD_20241216_001",
+  "old_status": "received",
+  "new_status": "cooking",
+  "changed_by": "chef_mario",
+  "timestamp": "2024-12-16T10:32:00Z",
+  "estimated_completion": "2024-12-16T10:42:00Z"
+}
+```
+
+## Logging Format
+
+All services must implement structured logging in JSON format:
+
+```json
+{
+  "timestamp": "2024-12-16T10:30:15.123Z",
+  "level": "INFO",
+  "service": "order-service",
+  "worker_name": "chef_mario",
+  "order_number": "ORD_20241216_001",
+  "action": "order_received",
+  "message": "Order received and queued for processing",
+  "duration_ms": 45,
+  "details": {
+    "customer_name": "John Doe",
+    "order_type": "delivery",
+    "priority": 10,
+    "total_amount": 15.99
+  }
+}
+```
+
+**Log Levels:**
+- ERROR: System errors, connection failures, invalid data
+- WARN: Retry attempts, temporary failures, configuration issues  
+- INFO: Order lifecycle events, worker status changes
+- DEBUG: Detailed processing information, performance metrics
+
+**Required Log Events:**
+- Order received/processed/completed
+- Worker connected/disconnected
+- Status changes
+- Error conditions and recoveries
+- Performance metrics (processing times)
+
 ## Resources
 
 - [RabbitMQ Documentation](https://www.rabbitmq.com/documentation.html)
 - [RabbitMQ Docker Image](https://hub.docker.com/_/rabbitmq)
 - [Go AMQP Client](https://github.com/rabbitmq/amqp091-go)
+- [PostgreSQL Go Driver (pgx)](https://github.com/jackc/pgx)
 
 ## General Criteria
 
@@ -84,6 +272,10 @@ This approach gives us a clear path forward. By focusing on these key requiremen
 - Your program MUST NOT crash unexpectedly (any panics: `nil-pointer dereference`, `index out of range`, etc.). If this happens, you will receive `0` points during defense.
 - Only built-in Go packages, `pgx/v5` and the official AMQP client (`github.com/rabbitmq/amqp091-go`) are allowed. If other packages are used, you will receive a score of `0`.
 - RabbitMQ server MUST be running and available for connection.
+- PostgreSQL database MUST be running and accessible for all services
+- All RabbitMQ connections must handle reconnection scenarios
+- Implement proper graceful shutdown for all services
+- All database operations must be transactional where appropriate
 - The project MUST compile with the following command in the project root directory:
 
 ```sh
@@ -96,298 +288,403 @@ $ go build -o restaurant-system .
 
 By default, your program should implement a basic order processing system using RabbitMQ work queue pattern to distribute orders among cooks.
 
+#### Database Setup:
+
+Create all required tables as specified in the Database Schema section. Each service must connect to PostgreSQL and handle connection errors gracefully.
+
+#### RabbitMQ Setup:
+
+- Queue name: `kitchen_queue`
+- Exchange: direct exchange named `orders_direct`
+- Routing key: `kitchen.order`
+- Queue should be durable and survive server restarts
+- Messages should be persistent
+- Connection must handle reconnection automatically
+
+#### Order Processing Flow:
+
+1. Order Service receives HTTP POST request
+2. Validates request data and calculates totals
+3. Stores order in PostgreSQL orders table
+4. Publishes order message to RabbitMQ
+5. Kitchen Worker consumes order from queue
+6. Updates order status to 'cooking' in database
+7. Simulates cooking process (configurable duration)
+8. Updates order status to 'ready' in database
+9. Logs completion and acknowledges message
+
 Outcomes:
 - Program accepts orders through REST API
-- Program uses RabbitMQ to store orders in queue
-- Program distributes orders among available cooks
-- Program handles basic error scenarios
+- Program uses PostgreSQL to persist order data
+- Program uses RabbitMQ to distribute orders among cooks
+- Program handles database and RabbitMQ connection failures
+- All status changes are logged to database
 
 Notes:
-- Orders contain: order ID, list of dishes, customer information, order type
-- Cooks compete for orders (competing consumers)
-- Default cooking time 10 seconds for demonstration
+- Orders contain: order number, customer info, items list, pricing, timestamps
+- Cooks compete for orders (competing consumers pattern)
+- Default cooking time: 10 seconds for demo purposes
+- Order IDs follow format: `ORD_YYYYMMDD_NNN`
 
 Constraints:
-- On any error, output error message with reason specified
-- Orders must be acknowledged only after successful processing
+- On any error, output structured JSON log with error details
+- Orders must be acknowledged only after successful database update
 - Maximum 50 concurrent orders in system
 - Each order must be processed exactly once
+- Database transactions must be used for order updates
 
 Examples:
 
 ```sh
 $ docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+$ docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=password postgres:13
+
+# Initialize database and queues
+$ ./restaurant-system --setup-db --db="postgres://user:password@localhost/restaurant"
+$ ./restaurant-system --setup-queues --rabbitmq="localhost:5672"
 
 # Start order service
-$ ./restaurant-system --mode=order-service --port=3000
-Order service started on port 3000
-Connected to RabbitMQ at localhost:5672
-Kitchen queue initialized
+$ ./restaurant-system --mode=order-service --port=3000 --db="postgres://user:password@localhost/restaurant"
+{"timestamp":"2024-12-16T10:30:00Z","level":"INFO","service":"order-service","message":"Service started on port 3000"}
+
+# Start kitchen worker
+$ ./restaurant-system --mode=kitchen-worker --worker-name="chef_mario" --db="postgres://user:password@localhost/restaurant"
+{"timestamp":"2024-12-16T10:30:05Z","level":"INFO","service":"kitchen-worker","worker_name":"chef_mario","message":"Worker connected and ready"}
 
 # Place order
 $ curl -X POST http://localhost:3000/orders \
   -H "Content-Type: application/json" \
   -d '{
         "customer_name": "John Doe",
-        "phone": "555-0123",
+        "order_type": "takeout",
         "items": [
-          {"name": "Margherita Pizza", "quantity": 1},
-          {"name": "Caesar Salad", "quantity": 1}
+          {"name": "Margherita Pizza", "quantity": 1, "price": 15.99},
+          {"name": "Caesar Salad", "quantity": 1, "price": 8.99}
         ]
       }'
 
-Response: {"order_id": "ORD_001", "status": "received", "message": "Order placed successfully"}
-
-# Cook processes orders
-$ ./restaurant-system --mode=kitchen-worker --worker-id="chef_mario"
-Kitchen worker chef_mario connected to RabbitMQ
-Listening for orders on kitchen_queue...
-Received order ORD_001: Margherita Pizza (1), Caesar Salad (1)
-Customer: John Doe (555-0123)
-Processing order... (10 seconds)
-Order ORD_001 completed by chef_mario
+Response: {"order_number": "ORD_20241216_001", "status": "received", "total_amount": 24.98}
 ```
 
 ### Multiple Workers
 
 Your program should support multiple cooks working simultaneously with automatic order distribution among them.
 
+#### Worker Management:
+
+- Register workers in PostgreSQL workers table
+- Track worker status and last seen timestamp
+- Handle worker disconnections gracefully
+- Redistribute unacknowledged orders to available workers
+
+#### Load Balancing:
+
+- Use RabbitMQ round-robin distribution by default
+- Track worker performance metrics in database
+- Support worker-specific order type filtering
+- Implement worker health monitoring
+
 Outcomes:
-- Program supports multiple cooks
+- Program supports multiple cooks simultaneously
 - Orders are distributed evenly among available cooks
-- New cooks can connect dynamically
+- New cooks can connect dynamically without service restart
 - Cook disconnection doesn't affect processing of other orders
+- Worker status is tracked in database
 
 Constraints:
-- Use RabbitMQ round-robin distribution
-- Maximum 10 cooks simultaneously
-- Each cook must have unique ID
-- Unacknowledged messages should be redirected to other cooks
+- Use RabbitMQ round-robin distribution mechanism
+- Maximum 10 active workers simultaneously
+- Each cook must have unique worker name
+- Unacknowledged messages are redelivered to other workers
+- Worker heartbeat every 30 seconds
 
 ```sh
-# Start multiple cooks
-$ ./restaurant-system --mode=kitchen-worker --worker-id="chef_mario" &
-$ ./restaurant-system --mode=kitchen-worker --worker-id="chef_luigi" &
-$ ./restaurant-system --mode=kitchen-worker --worker-id="chef_anna" &
+# Start multiple workers with different specializations
+$ ./restaurant-system --mode=kitchen-worker --worker-name="chef_mario" --order-types="pizza,pasta" &
+$ ./restaurant-system --mode=kitchen-worker --worker-name="chef_luigi" --order-types="salad,soup" &
+$ ./restaurant-system --mode=kitchen-worker --worker-name="chef_anna" &
 
-Kitchen worker chef_mario connected
-Kitchen worker chef_luigi connected  
-Kitchen worker chef_anna connected
-All workers listening on kitchen_queue
+# Worker logs show specialization
+{"timestamp":"2024-12-16T10:30:00Z","level":"INFO","service":"kitchen-worker","worker_name":"chef_mario","message":"Worker registered for order types: pizza,pasta"}
 
-# Monitor order distribution
-$ curl -X POST http://localhost:3000/orders -d '{"customer_name":"Alice","items":[{"name":"Pizza","quantity":1}]}'
-$ curl -X POST http://localhost:3000/orders -d '{"customer_name":"Bob","items":[{"name":"Pasta","quantity":1}]}'
-$ curl -X POST http://localhost:3000/orders -d '{"customer_name":"Carol","items":[{"name":"Salad","quantity":1}]}'
-
-# In cook logs:
-# chef_mario: Received order ORD_001 (Alice - Pizza)
-# chef_luigi: Received order ORD_002 (Bob - Pasta)  
-# chef_anna: Received order ORD_003 (Carol - Salad)
+# Monitor worker status
+$ curl http://localhost:3000/workers/status
+[
+  {"worker_name": "chef_mario", "status": "online", "orders_processed": 5, "last_seen": "2024-12-16T10:35:00Z"},
+  {"worker_name": "chef_luigi", "status": "online", "orders_processed": 3, "last_seen": "2024-12-16T10:35:01Z"}
+]
 ```
 
 ### Order Status Tracking
 
-Your program should implement an order status tracking system using publish/subscribe pattern for notifications.
+Your program should implement a comprehensive order status tracking system using publish/subscribe pattern for real-time notifications.
+
+#### Status Management:
+
+- Track all status transitions in `order_status_log` table
+- Implement status validation (prevent invalid transitions)
+- Provide real-time status updates via RabbitMQ
+- Support status queries via REST API
+
+#### Notification System:
+
+- Use fanout exchange for broadcasting status updates
+- Support customer-specific notification filtering
+- Log all notification deliveries
+- Handle notification delivery failures
 
 Outcomes:
-- Program tracks status of each order
+- Program tracks complete status history for each order
 - Order status is updated at each processing stage
-- Clients can query status of their orders
-- System sends notifications about status changes
+- Clients can query current and historical status
+- System sends real-time notifications about status changes
+- Status transitions are validated and logged
 
 Constraints:
-- Statuses: received, cooking, ready, delivered
-- Use fanout exchange for notifications
-- Notifications must contain order_id, status, timestamp
-- API endpoint for checking order status
+- Valid statuses: received, cooking, ready, out-for-delivery, delivered, cancelled
+- Use fanout exchange named `notifications_fanout`
+- All status changes must be atomic (database + message)
+- Notifications include timestamp, order details, estimated completion
+- API endpoints for status queries and history
 
 ```sh
 # Start tracking service
-$ ./restaurant-system --mode=tracking-service &
+$ ./restaurant-system --mode=tracking-service --db="postgres://user:password@localhost/restaurant" &
+{"timestamp":"2024-12-16T10:30:00Z","level":"INFO","service":"tracking-service","message":"Tracking service started"}
 
-# Subscribe to order notifications
-$ ./restaurant-system --mode=notification-subscriber --customer="John Doe"
-Subscribed to order notifications
-Received: Order ORD_001 status changed to 'cooking' at 2024-12-16 10:30:15
-Received: Order ORD_001 status changed to 'ready' at 2024-12-16 10:40:20
+# Start notification subscriber
+$ ./restaurant-system --mode=notification-subscriber --customer="John Doe" &
+{"timestamp":"2024-12-16T10:30:05Z","level":"INFO","service":"notification-subscriber","message":"Subscribed to notifications for customer: John Doe"}
 
-# Check order status via API
-$ curl http://localhost:3000/orders/ORD_001/status
-{"order_id": "ORD_001", "status": "ready", "updated_at": "2024-12-16T10:40:20Z"}
+# Check order status and history
+$ curl http://localhost:3000/orders/ORD_20241216_001/status
+{
+  "order_number": "ORD_20241216_001",
+  "current_status": "cooking",
+  "updated_at": "2024-12-16T10:32:00Z",
+  "estimated_completion": "2024-12-16T10:42:00Z",
+  "processed_by": "chef_mario"
+}
+
+$ curl http://localhost:3000/orders/ORD_20241216_001/history
+[
+  {"status": "received", "timestamp": "2024-12-16T10:30:00Z", "changed_by": "order-service"},
+  {"status": "cooking", "timestamp": "2024-12-16T10:32:00Z", "changed_by": "chef_mario"}
+]
 ```
 
 ### Order Types and Routing
 
-Your program should support different order types (dine-in, takeout, delivery) with routing based on order type.
+Your program should support different order types with specialized routing and processing requirements.
+
+#### Order Type Processing:
+
+- **Dine-in**: Requires table number, shorter cooking time (8 sec)
+- **Takeout**: Standard processing, medium cooking time (10 sec)  
+- **Delivery**: Requires address validation, longer cooking time (12 sec)
+
+#### Routing Configuration:
+
+- Use topic exchange with routing patterns
+- Route orders to specialized worker queues
+- Support worker subscription to specific order types
+- Implement priority routing for rush orders
 
 Outcomes:
-- Program supports three order types: dine-in, takeout, delivery
-- Orders are routed to appropriate queues based on type
-- Different order types have different processing times
-- Delivery orders require additional processing
+- Program supports three distinct order types with different requirements
+- Orders are routed to appropriate processing queues
+- Different order types have different processing times and validation
+- Delivery orders include address validation and special handling
+- Workers can specialize in specific order types
 
 Constraints:
-- Use topic exchange with routing keys: `orders.kitchen.{type}`
-- Cooking times: dine-in (8 sec), takeout (10 sec), delivery (12 sec)
-- Delivery orders must include address
-- Order type validation on creation
+- Use topic exchange named `orders_topic` with routing keys `kitchen.{type}.{priority}`
+- Order type validation on creation with specific field requirements
+- Cooking time varies by type: dine-in (8s), takeout (10s), delivery (12s)
+- Delivery orders require valid address format
+- Table numbers required for dine-in orders
 
 ```sh
-# Dine-in order
-$ curl -X POST http://localhost:3000/orders \
-  -H "Content-Type: application/json" \
-  -d '{
-        "customer_name": "John Doe",
-        "order_type": "dine-in",
-        "table_number": 5,
-        "items": [{"name": "Steak", "quantity": 1}]
-      }'
+# Place different order types
+$ curl -X POST http://localhost:3000/orders \ 
+  -d '{"customer_name": "John", "order_type": "dine-in", "table_number": 5, 
+       "items": [{"name": "Steak", "quantity": 1, "price": 25.99}]}'
 
-# Takeout order
 $ curl -X POST http://localhost:3000/orders \
-  -H "Content-Type: application/json" \
-  -d '{
-        "customer_name": "Jane Smith", 
-        "order_type": "takeout",
-        "items": [{"name": "Burger", "quantity": 2}]
-      }'
+  -d '{"customer_name": "Jane", "order_type": "delivery", 
+       "delivery_address": "123 Main St, City, State 12345",
+       "items": [{"name": "Pizza", "quantity": 1, "price": 18.99}]}'
 
-# Delivery order
-$ curl -X POST http://localhost:3000/orders \
-  -H "Content-Type: application/json" \
-  -d '{
-        "customer_name": "Bob Wilson",
-        "order_type": "delivery", 
-        "address": "123 Main St, City",
-        "items": [{"name": "Pizza", "quantity": 1}]
-      }'
-
-# Cook can listen to specific order types
-$ ./restaurant-system --mode=kitchen-worker --worker-id="chef_mario" --order-types="dine-in,takeout"
-chef_mario listening for dine-in and takeout orders only
+# Worker specializing in delivery orders
+$ ./restaurant-system --mode=kitchen-worker --worker-name="delivery_chef" --order-types="delivery"
+{"timestamp":"2024-12-16T10:30:00Z","level":"INFO","service":"kitchen-worker","worker_name":"delivery_chef","message":"Listening for delivery orders only"}
 ```
 
 ### Priority Queue
 
-Your program should support order prioritization using RabbitMQ priority queues.
+Your program should support order prioritization using RabbitMQ priority queues with automatic priority assignment.
+
+#### Priority Assignment Rules:
+
+- **Priority 10 (High)**: VIP customers, rush orders, orders > $100
+- **Priority 5 (Medium)**: Large orders ($50-$100), repeat customers  
+- **Priority 1 (Normal)**: Standard orders
+
+#### Priority Processing:
+
+- Configure all queues with x-max-priority: 10
+- Workers process high-priority orders first
+- Track priority metrics in database
+- Support manual priority override for special cases
 
 Outcomes:
-- Program supports priority orders
-- VIP clients receive high priority automatically
-- Large orders (>$50) receive medium priority
-- Urgent orders can be marked as priority
+- Program automatically assigns priorities based on order characteristics
+- VIP customers and large orders receive expedited processing
+- Workers process orders in priority order
+- Priority assignment is logged and auditable
+- System supports manual priority overrides
 
 Constraints:
-- Priorities: 1 (normal), 5 (medium), 10 (high)
-- Configure queues with x-max-priority parameter
-- VIP status determined by client ID or flag
-- Priority calculated when placing order
+- All kitchen queues configured with x-max-priority parameter set to 10
+- Priority calculated automatically based on customer type and order value
+- VIP status stored in customer database or determined by previous orders
+- Priority changes logged in order_status_log table
+- High-priority orders bypass normal queue position
 
 ```sh
-# VIP order (high priority)
+# VIP customer order (automatically high priority)
 $ curl -X POST http://localhost:3000/orders \
-  -H "Content-Type: application/json" \
   -d '{
     "customer_name": "VIP Customer",
-    "customer_type": "VIP",
-    "items": [{"name": "Lobster", "quantity": 1, "price": 45.99}],
+    "customer_type": "vip",
+    "order_type": "delivery",
+    "delivery_address": "456 Executive Blvd",
+    "items": [{"name": "Premium Steak", "quantity": 1, "price": 45.99}],
     "rush": true
   }'
 
-Response: {"order_id": "ORD_002", "priority": 10, "status": "received"}
+Response: {"order_number": "ORD_20241216_002", "priority": 10, "status": "received", "estimated_completion": "2024-12-16T10:45:00Z"}
 
-# Large order (medium priority)  
+# Large order (automatically medium priority)
 $ curl -X POST http://localhost:3000/orders \
-  -H "Content-Type: application/json" \
   -d '{
-    "customer_name": "Regular Customer",
+    "customer_name": "Office Catering",
     "items": [
-      {"name": "Pizza", "quantity": 3, "price": 15.99},
-      {"name": "Salad", "quantity": 2, "price": 8.99}
+      {"name": "Pizza", "quantity": 5, "price": 15.99},
+      {"name": "Salad", "quantity": 3, "price": 8.99}
     ]
   }'
 
-Response: {"order_id": "ORD_003", "priority": 5, "status": "received"}
+Response: {"order_number": "ORD_20241216_003", "priority": 5, "total_amount": 106.92}
 
-# Cook receives orders by priority
-$ ./restaurant-system --mode=kitchen-worker --worker-id="chef_mario"
-Received HIGH PRIORITY order ORD_002 (VIP Customer - Lobster)
-Received MEDIUM PRIORITY order ORD_003 (Regular Customer - Pizza x3, Salad x2)
+# Worker processes by priority
+{"timestamp":"2024-12-16T10:32:00Z","level":"INFO","service":"kitchen-worker","worker_name":"chef_mario","order_number":"ORD_20241216_002","message":"Processing HIGH PRIORITY order","priority":10}
 ```
 
 ### Usage
 
-Your program should output usage information.
+Your program should output comprehensive usage information for all operational modes.
 
 Outcomes:
-- Program outputs text describing usage of all modes and options
+- Program outputs detailed usage information for all modes and options
+- Includes examples for common usage scenarios
+- Documents all configuration parameters
+- Provides troubleshooting guidance
 
 ```sh
 $ ./restaurant-system --help
-Restaurant Order Management System with RabbitMQ
+Restaurant Order Management System with RabbitMQ and PostgreSQL
 
 Usage:
-  restaurant-system --mode=order-service [--port=N] [--rabbitmq=HOST:PORT]
-  restaurant-system --mode=kitchen-worker --worker-id=ID [--order-types=TYPES] [--rabbitmq=HOST:PORT]
-  restaurant-system --mode=tracking-service [--rabbitmq=HOST:PORT]
-  restaurant-system --mode=notification-subscriber [--customer=NAME] [--rabbitmq=HOST:PORT]
-  restaurant-system --setup-queues [--rabbitmq=HOST:PORT]
+  restaurant-system --mode=order-service [OPTIONS]
+  restaurant-system --mode=kitchen-worker --worker-name=worker_name [OPTIONS]
+  restaurant-system --mode=tracking-service [OPTIONS]
+  restaurant-system --mode=notification-subscriber [OPTIONS]
+  restaurant-system --setup-db [OPTIONS]
+  restaurant-system --setup-queues [OPTIONS]
   restaurant-system --help
 
 Service Modes:
-  order-service             REST API for receiving orders
-  kitchen-worker           Kitchen staff processing orders  
-  tracking-service         Order status tracking service
-  notification-subscriber  Customer notification service
+  order-service             REST API for receiving and managing orders
+  kitchen-worker           Kitchen staff processing orders from queue
+  tracking-service         Centralized order status tracking service
+  notification-subscriber  Real-time customer notification service
 
 Connection Options:
-  --rabbitmq              RabbitMQ server address (default: localhost:5672)
-  --rabbitmq-user         RabbitMQ username (default: guest)
-  --rabbitmq-pass         RabbitMQ password (default: guest)
+  --db                    PostgreSQL connection string (required for all modes)
+                         Format: postgres://user:pass@host:port/dbname
+  --rabbitmq             RabbitMQ server address (default: localhost:5672)
+  --rabbitmq-user        RabbitMQ username (default: guest)
+  --rabbitmq-pass        RabbitMQ password (default: guest)
 
 Order Service Options:
-  --port                  HTTP port for REST API (default: 3000)
+  --port                 HTTP port for REST API (default: 3000)
+  --max-concurrent       Maximum concurrent orders (default: 50)
 
 Kitchen Worker Options:
-  --worker-id             Unique worker identifier (required)
-  --order-types           Comma-separated order types to process (default: all)
+  --worker-name            Unique worker name (required)
+  --order-types          Comma-separated order types to process (default: all)
+                        Options: dine-in,takeout,delivery
+  --cooking-time         Base cooking time in seconds (default: 10)
 
 Notification Options:
-  --customer              Customer name for notifications
+  --customer            Customer name filter for notifications
+  --notification-types  Types of notifications to receive (default: all)
 
-Setup:
-  --setup-queues          Initialize RabbitMQ exchanges and queues
+Setup Commands:
+  --setup-db            Initialize PostgreSQL database schema
+  --setup-queues        Initialize RabbitMQ exchanges and queues
+  --migrate-db          Run database migrations
+
+Logging Options:
+  --log-level           Log level: DEBUG, INFO, WARN, ERROR (default: INFO)
+  --log-file            Log file path (default: stdout)
 
 Examples:
-  # Setup RabbitMQ
-  ./restaurant-system --setup-queues
+  # Setup environment
+  ./restaurant-system --setup-db --db="postgres://user:pass@localhost/restaurant"
+  ./restaurant-system --setup-queues --rabbitmq="localhost:5672"
 
   # Start order service
-  ./restaurant-system --mode=order-service --port=3000
+  ./restaurant-system --mode=order-service --port=3000 --db="postgres://user:pass@localhost/restaurant"
 
-  # Start kitchen worker
-  ./restaurant-system --mode=kitchen-worker --worker-id=chef1
+  # Start specialized kitchen worker
+  ./restaurant-system --mode=kitchen-worker --worker-name=pizza_chef --order-types=dine-in,takeout --db="postgres://user:pass@localhost/restaurant"
 
-  # Monitor notifications
+  # Monitor specific customer notifications
   ./restaurant-system --mode=notification-subscriber --customer="John Doe"
+
+Environment Variables:
+  DB_URL      PostgreSQL connection string
+  RABBITMQ    RabbitMQ server address
+  LOG_LEVEL   Default log level
+
+Troubleshooting:
+  - Ensure PostgreSQL and RabbitMQ services are running
+  - Check connection strings and credentials
+  - Verify database schema is initialized
+  - Check RabbitMQ management interface at http://localhost:15672
 ```
 
 ## Support
 
 If you get stuck, test your code with the example inputs from the project. You should get the same results. If not, re-read the description again. Perhaps you missed something, or your code is incorrect.
 
-Make sure the RabbitMQ server is running and accessible. Check the connection to RabbitMQ and proper configuration of queues and exchanges.
+Make sure both PostgreSQL and RabbitMQ servers are running and accessible. Check the connection strings and verify proper configuration of database schema and message queues.
 
-If you're still stuck, ask a friend for help or take a break and come back later.
+Test each component individually before integrating them together. Use the provided SQL scripts to verify database schema and the RabbitMQ management interface to monitor queue status.
+
+If you're still stuck, review the logging output for error details, check service dependencies, and ensure all required environment variables are set correctly.
 
 ## Guidelines from Author
 
 Before diving into code, it's crucial to step back and think about your system architecture. This project illustrates a fundamental principle of good software design - your architectural choices often determine the clarity and efficiency of your code.
 
-Start with questions: How will components interact? Which message exchange patterns best fit the task? What delivery guarantees are needed? Only after you've carefully thought through these questions should you proceed to API design and code writing.
+Start with questions: How will components interact? Which message exchange patterns best fit the task? What delivery guarantees are needed? How will you handle failures and ensure data consistency? Only after you've carefully thought through these questions should you proceed to API design and code writing.
 
 This approach may seem like extra work initially, but it pays off. Well-chosen architecture can make your code simpler, more readable, and often more efficient. It's like choosing the right tools before starting work - with the right foundation, the rest of the work becomes much easier.
+
+Pay special attention to the data flow between services. Design your database schema first, then define your message formats, and finally implement the service logic. This order ensures consistency and reduces the need for major refactoring later.
 
 Remember that in programming, as in many other things, thoughtful preparation is the key to success. Spend time on proper architecture, and you'll find that the coding process becomes smoother and more enjoyable.
 
