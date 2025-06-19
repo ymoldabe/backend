@@ -103,62 +103,70 @@ This approach gives us a clear path forward. By focusing on these key requiremen
 ## Database Schema
 
 ### Orders Table
+**Purpose**: Primary storage for all restaurant orders with complete order information
+**Used by**: Order Service (insert), Kitchen Workers (status updates), Tracking Service (queries)
 
 ```sql
 create table orders (
     "id"                uuid          primary key default gen_random_uuid(),
     "created_at"        timestamptz   not null    default now(),
     "updated_at"        timestamptz   not null    default now(),
-    "number"            varchar(20)   unique not null,
-    "customer_name"     varchar(100)  not null,
-    "customer_type"     varchar(10)   default 'regular',
-    "type"        varchar(10)   not null check (order_type in ('dine-in', 'takeout', 'delivery')),
+    "number"            text          unique not null,
+    "customer_name"     text          not null,
+    "customer_type"     text          default 'regular',
+    "type"              text          not null check (type in ('dine-in', 'takeout', 'delivery')),
     "table_number"      integer,
     "delivery_address"  text,
     "total_amount"      decimal(10,2) not null,
     "priority"          integer       default 1,
-    "status"            varchar(20)   default 'received',
-    "processed_by"      varchar(50),
+    "status"            text          default 'received',
+    "processed_by"      text,
     "completed_at"      timestamptz
 );
 ```
 
 ### Order Items Table
+**Purpose**: Stores individual items within each order for detailed order composition
+**Used by**: Order Service (insert items when creating orders), API queries for order details
 
 ```sql
 CREATE TABLE order_items (
     "id"          uuid          primary key default gen_random_uuid(),
     "created_at"  timestamptz   not null    default now(),
-    "order_id"    varchar(20)   references orders(id),
-    "name"        varchar(100)  not null,
+    "order_id"    uuid          references orders(id),
+    "name"        text          not null,
     "quantity"    integer       not null,
     "price"       decimal(8,2)  not null
 );
 ```
 
 ### Order Status Log Table
+**Purpose**: Audit trail for all status changes throughout order lifecycle
+**Used by**: All services (insert status changes), Tracking Service (status history queries)
 
 ```sql
 create table order_status_log (
     "id"          uuid          primary key default gen_random_uuid(),
     "created_at"  timestamptz   not null    default now(),
-    order_id      varchar(20)   references orders(id),
-    "status"      varchar(20),
-    "changed_by"  varchar(50),
+    order_id      uuid          references orders(id),
+    "status"      text,
+    "changed_by"  text,
     "changed_at"  timestamp     default current_timestamp,
     "notes"       text
 );
 ```
 
 ### Workers Table
+**Purpose**: Registry and monitoring of all kitchen workers and their current status
+**Used by**: Kitchen Workers (registration and heartbeat), Tracking Service (worker monitoring)
 
 ```sql
 create table workers (
     "id"                uuid        primary key default gen_random_uuid(),
     "created_at"        timestamptz not null    default now(),
-    "name"              varchar(50) unique not null,
-    "type"              varchar(20) not null,
-    "status"            varchar(10) default 'online',
+    "name"              text        unique not null,
+    "type"              text        not null,
+    "status"            text        default 'online',
     "last_seen"         timestamp   default current_timestamp,
     "orders_processed"  integer     default 0
 );
@@ -167,6 +175,12 @@ create table workers (
 ## RabbitMQ Configuration
 
 ### Exchanges and Queues Setup
+
+**Exchange Types Explained:**
+
+**Direct Exchange (`orders_direct`)**: Routes messages to queues based on exact routing key match. Used for targeted order routing where each order type goes to its specific queue. Only workers listening to that exact routing key will receive the message.
+
+**Fanout Exchange (`notifications_fanout`)**: Broadcasts all messages to every queue bound to it, ignoring routing keys. Used for notifications where all subscribers need to receive status updates regardless of their specific interests.
 
 ```
 Exchanges:
@@ -181,15 +195,25 @@ Exchanges:
 
 Queues:
 ├── kitchen_queue (durable: true, x-max-priority: 10)
+│   └── Read by: General kitchen workers
 ├── kitchen_dine_in_queue (durable: true, x-max-priority: 10)
+│   └── Read by: Dine-in specialized workers
 ├── kitchen_takeout_queue (durable: true, x-max-priority: 10)
+│   └── Read by: Takeout specialized workers
 ├── kitchen_delivery_queue (durable: true, x-max-priority: 10)
+│   └── Read by: Delivery specialized workers
 └── notifications_queue (durable: true, auto-delete: false)
+    └── Read by: Notification subscribers, customer apps
 ```
 
 ### Message Formats
 
-**Order Message**
+#### Order Message
+**Purpose**: Contains complete order information for kitchen processing
+**Sent to**: Kitchen queues (kitchen_queue, kitchen_dine_in_queue, etc.)
+**Read by**: Kitchen Workers
+**Routing**: Through orders_direct exchange using routing keys like "kitchen.delivery"
+
 ```json
 {
   "order_number": "ORD_20241216_001",
@@ -210,7 +234,12 @@ Queues:
 }
 ```
 
-**Status Update Message**
+#### Status Update Message
+**Purpose**: Notifies all interested parties about order status changes
+**Sent to**: notifications_fanout exchange
+**Read by**: Notification Subscribers, terminal
+**Routing**: Broadcast to all queues bound to notifications_fanout exchange
+
 ```json
 {
   "order_number": "ORD_20241216_001",
@@ -245,18 +274,82 @@ All services must implement structured logging in JSON format:
 }
 ```
 
-**Log Levels:**
-- ERROR: System errors, connection failures, invalid data
-- WARN: Retry attempts, temporary failures, configuration issues  
-- INFO: Order lifecycle events, worker status changes
-- DEBUG: Detailed processing information, performance metrics
+### Log Levels Usage:
 
-**Required Log Events:**
-- Order received/processed/completed
-- Worker connected/disconnected
-- Status changes
-- Error conditions and recoveries
-- Performance metrics (processing times)
+**ERROR**: 
+- Database connection failures
+- RabbitMQ connection drops
+- Order validation failures (invalid data, missing required fields)
+- Message publish/consume errors
+- System crashes or unrecoverable errors
+
+**WARN**: 
+- Message retry attempts (when worker is temporarily unavailable)
+- Database query timeout warnings
+- Configuration issues (missing optional parameters, using defaults)
+- Order processing delays (cooking time exceeded)
+- Worker disconnection/reconnection events
+
+**INFO**: 
+- Order lifecycle events (received, cooking started, completed)
+- Worker status changes (connected, disconnected, processing order)
+- Service startup/shutdown
+- Normal business operations
+- Performance milestones (orders per hour, average processing time)
+
+**DEBUG**: 
+- Detailed message content (full order JSON)
+- Database query execution details
+- Internal processing steps
+- Performance metrics (exact processing times, queue lengths)
+- Development and troubleshooting information
+
+### Required Log Events:
+- **Order received/processed/completed** (INFO level)
+- **Worker connected/disconnected** (INFO level)
+- **Status changes** (INFO level)
+- **Error conditions and recoveries** (ERROR/WARN level)
+- **Performance metrics** (INFO/DEBUG level)
+
+## Configuration Management
+
+### Database Configuration
+Configuration is stored in environment variables and command-line flags. The system creates a configuration file at startup:
+
+```yaml
+# config/database.yaml (auto-generated during --setup-db)
+database:
+  host: localhost
+  port: 5432
+  user: restaurant_user
+  password: restaurant_pass
+  database: restaurant_db
+```
+
+### RabbitMQ Configuration  
+```yaml
+# config/rabbitmq.yaml (auto-generated during --setup-queues)
+rabbitmq:
+  host: localhost
+  port: 5672
+  user: guest
+  password: guest
+  vhost: /
+  exchanges:
+    orders_direct:
+      type: direct
+      durable: true
+    notifications_fanout:
+      type: fanout
+      durable: true
+  queues:
+    kitchen_queue:
+      durable: true
+      max_priority: 10
+    notifications_queue:
+      durable: true
+      auto_delete: false
+```
 
 ## Resources
 
@@ -301,17 +394,45 @@ Create all required tables as specified in the Database Schema section. Each ser
 - Messages should be persistent
 - Connection must handle reconnection automatically
 
-#### Order Processing Flow:
+#### Orders:
 
-1. Order Service receives HTTP POST request
-2. Validates request data and calculates totals
-3. Stores order in PostgreSQL orders table
-4. Publishes order message to RabbitMQ
-5. Kitchen Worker consumes order from queue
-6. Updates order status to 'cooking' in database
-7. Simulates cooking process (configurable duration)
-8. Updates order status to 'ready' in database
-9. Logs completion and acknowledges message
+1. **Order Reception**: Order Service receives HTTP POST request with order data
+   - **Validation Rules**: 
+     - customer_name: required, 1-100 characters, no special characters except spaces, hyphens, apostrophes
+     - order_type: required, must be one of: 'dine-in', 'takeout', 'delivery'
+     - items: required array, minimum 1 item, maximum 20 items per order
+     - item.name: required, 1-50 characters
+     - item.quantity: required, integer, 1-10 per item
+     - item.price: required, decimal, 0.01-999.99
+     - table_number: required for dine-in orders, 1-100
+     - delivery_address: required for delivery orders, minimum 10 characters
+   
+2. **Order Calculation**: Calculate total amount and assign priority
+   - **Total Calculation**: Sum of (item.price * item.quantity) for all items
+   - **Priority Assignment**: 
+     - VIP customers (customer_type="vip"): priority 10
+     - Orders > $100: priority 5  
+     - Default: priority 1
+   
+3. **Database Storage**: Store order in PostgreSQL orders table within transaction
+   - Generate order number: `ORD_YYYYMMDD_NNN` (NNN = daily sequence number)
+   - Insert order record with status 'received'
+   - Log initial status in order_status_log
+   
+4. **Message Publishing**: Publish order message to RabbitMQ
+   - Route to kitchen_queue using routing key 'kitchen.order'
+   - Message includes complete order data (see Order Message format)
+   
+5. **Kitchen Processing**: Kitchen Worker consumes order from queue
+   - Acknowledge receipt and update status to 'cooking'
+   - Record processing start time and worker name
+   - Simulate cooking process (configurable duration)
+   
+6. **Order Completion**: Update order status to 'ready'
+   - Record completion timestamp
+   - Update orders_processed counter for worker
+   - Log completion details
+   - Acknowledge message to RabbitMQ
 
 Outcomes:
 - Program accepts orders through REST API
@@ -339,16 +460,16 @@ Examples:
 $ docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
 $ docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=password postgres:13
 
-# Initialize database and queues
+# Initialize database and queues (creates config files)
 $ ./restaurant-system --setup-db --db="postgres://user:password@localhost/restaurant"
 $ ./restaurant-system --setup-queues --rabbitmq="localhost:5672"
 
-# Start order service
-$ ./restaurant-system --mode=order-service --port=3000 --db="postgres://user:password@localhost/restaurant"
+# Start order service (uses config files if flags not provided)
+./restaurant-system --mode=order-service --port=3000
 {"timestamp":"2024-12-16T10:30:00Z","level":"INFO","service":"order-service","message":"Service started on port 3000"}
 
-# Start kitchen worker
-$ ./restaurant-system --mode=kitchen-worker --worker-name="chef_mario" --db="postgres://user:password@localhost/restaurant"
+# Start kitchen worker (uses config files if flags not provided)  
+./restaurant-system --mode=kitchen-worker --worker-name="chef_mario" --order-types="dine-in,takeout"
 {"timestamp":"2024-12-16T10:30:05Z","level":"INFO","service":"kitchen-worker","worker_name":"chef_mario","message":"Worker connected and ready"}
 
 # Place order
@@ -611,6 +732,7 @@ Service Modes:
   notification-subscriber  Real-time customer notification service
 
 Connection Options:
+  # If not provided, reads from config.yaml
   --db                    PostgreSQL connection string (required for all modes)
                          Format: postgres://user:pass@host:port/dbname
   --rabbitmq             RabbitMQ server address (default: localhost:5672)
