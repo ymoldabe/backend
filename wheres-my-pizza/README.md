@@ -558,9 +558,8 @@ curl -X POST http://localhost:3000/orders \
 
 Use structured logging format as defined in the [Logging Format](#logging-format) section.
 
-#### Relevant Flags
+#### Flags
 
-- `--port`: HTTP port for REST API (default: 3001)
 - `--worker-name`: Unique name for the worker (required).
 - `--order-types`: Comma-separated list of order types the worker can process (e.g., `dine_in,takeout`).
 
@@ -571,13 +570,6 @@ Use structured logging format as defined in the [Logging Format](#logging-format
 $ ./restaurant-system --mode=kitchen-worker --worker-name="chef_mario" --order-types="dine_in" &
 $ ./restaurant-system --mode=kitchen-worker --worker-name="chef_luigi" --order-types="delivery" &
 $ ./restaurant-system --mode=kitchen-worker --worker-name="chef_anna" &
-
-# Monitor worker status
-$ curl http://localhost:3001/workers/status
-[
-  {"worker_name": "chef_mario", "status": "online", "orders_processed": 5, "last_seen": "2024-12-16T10:35:00Z"},
-  {"worker_name": "chef_luigi", "status": "online", "orders_processed": 3, "last_seen": "2024-12-16T10:35:01Z"}
-]
 ```
 
 ### Multiple Workers & Load Balancing
