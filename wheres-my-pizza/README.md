@@ -611,7 +611,7 @@ $ curl http://localhost:3001/workers/status
 
 Use structured logging format as defined in the [Logging Format](#logging-format) section.
 
-#### Config / Flags
+#### Flags
 
 - `--worker-name`: Unique worker name (required).
 - `--order-types`: Comma-separated order types to process.
