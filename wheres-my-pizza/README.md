@@ -242,13 +242,13 @@ All services must implement structured logging in JSON format.
 
 **Mandatory Core Fields:**
 The following keys must always be present in every log entry:
-*   `timestamp`: The time the log entry was created.
-*   `level`: The log level (e.g., INFO, ERROR).
-*   `service`: The name of the service emitting the log (e.g., `order-service`, `kitchen-worker`).
-*   `action`: A concise, machine-readable string describing the event (e.g., `order_received`, `db_error`).
-*   `message`: A human-readable description of the event.
-*   `hostname`: The hostname or unique identifier of the module emitting the log.
-*   `request_id`: A unique identifier for correlating requests/operations across multiple services.
+- `timestamp`: The time the log entry was created.
+- `level`: The log level (e.g., INFO, ERROR).
+- `service`: The name of the service emitting the log (e.g., `order-service`, `kitchen-worker`).
+- `action`: A concise, machine-readable string describing the event (e.g., `order_received`, `db_error`).
+- `message`: A human-readable description of the event.
+- `hostname`: The hostname or unique identifier of the module emitting the log.
+- `request_id`: A unique identifier for correlating requests/operations across multiple services.
 
 **Format Example:**
 ```json
@@ -293,15 +293,15 @@ For `ERROR` level logs, an `error` object must be included with the following st
 
 ### Log Levels Usage
 
-*   **ERROR:** Database connection failures, RabbitMQ connection drops, order validation failures, message publish/consume errors, system crashes.
-*   **WARN:** Message retry attempts, database query timeout warnings, configuration issues, order processing delays, worker disconnection/reconnection events.
-*   **INFO:** Order lifecycle events (received, cooking started, completed), worker status changes, service startup/shutdown, normal business operations, performance milestones.
-*   **DEBUG:** Detailed message content, database query execution details, internal processing steps, performance metrics, development and troubleshooting information.
+- **ERROR:** Database connection failures, RabbitMQ connection drops, order validation failures, message publish/consume errors, system crashes.
+- **WARN:** Message retry attempts, database query timeout warnings, configuration issues, order processing delays, worker disconnection/reconnection events.
+- **INFO:** Order lifecycle events (received, cooking started, completed), worker status changes, service startup/shutdown, normal business operations, performance milestones.
+- **DEBUG:** Detailed message content, database query execution details, internal processing steps, performance metrics, development and troubleshooting information.
 
 ### Log Location and Format Rules:
-*   All logs must be emitted as single-line JSON (no pretty printing) to `stdout`. This is crucial for containerized environments where log collectors typically consume `stdout`.
-*   Logs must not contain Personally Identifiable Information (PII), such as `customer_address`, payment information, or other sensitive data.
-*   All log messages must be UTF-8 encoded, and newlines within log fields must be properly escaped.
+- All logs must be emitted as single-line JSON (no pretty printing) to `stdout`. This is crucial for containerized environments where log collectors typically consume `stdout`.
+- Logs must not contain Personally Identifiable Information (PII), such as `customer_address`, payment information, or other sensitive data.
+- All log messages must be UTF-8 encoded, and newlines within log fields must be properly escaped.
 
 ### Required Log Events:
 
@@ -407,8 +407,8 @@ Create all required tables as specified in the Database Schema section. Each ser
 
 #### API Endpoint
 
-  * **Endpoint:** `POST /orders`
-  * **Content-Type:** `application/json`
+- **Endpoint:** `POST /orders`
+- **Content-Type:** `application/json`
 
 #### Incoming Request Format
 
@@ -433,9 +433,9 @@ Create all required tables as specified in the Database Schema section. Each ser
 6.  **Store order** in PostgreSQL `orders` and `order_items` tables within a transaction.
 7.  **Log initial status** to `order_status_log`.
 8.  **Publish `Order Message` to RabbitMQ**:
-      * **Exchange:** `orders_topic`.
-      * **Routing Key:** `kitchen.{order_type}.{priority}` (e.g., `kitchen.takeout.1`).
-      * **Message Properties:** Set `delivery_mode: 2` (persistent). For priority queueing, map the priority level (`10`/`5`/`1`) to a numeric value and set it in the `priority` message property.
+    - **Exchange:** `orders_topic`.
+    - **Routing Key:** `kitchen.{order_type}.{priority}` (e.g., `kitchen.takeout.1`).
+    - **Message Properties:** Set `delivery_mode: 2` (persistent). For priority queueing, map the priority level (`10`/`5`/`1`) to a numeric value and set it in the `priority` message property.
 9.  **Return HTTP JSON response.**
 
 #### Outgoing Response Format
@@ -460,19 +460,19 @@ The system assigns a priority level (`10`, `5`, `1`) to each order. If an order 
 
 #### Validation Rules & Edge Cases
 
-  * `customer_name`: required, 1-100 characters, no special characters except spaces, hyphens, apostrophes.
-  * `order_type`: required, must be one of: 'dine_in', 'takeout', 'delivery'.
-  * `items`: required array, minimum 1 item, maximum 20 items per order.
-  * `item.name`: required, 1-50 characters.
-  * `item.quantity`: required, integer, 1-10 per item.
-  * `item.price`: required, decimal, 0.01-999.99.
-  * `table_number`: required for `dine_in` orders, 1-100.
-  * `delivery_address`: required for `delivery` orders, minimum 10 characters.
-  * **Conflicting Fields**:
-      * `dine_in` orders must NOT include `delivery_address`.
-      * `delivery` orders must NOT include `table_number`.
-  * **Duplicate Items**: Reject order if `items` contains duplicate entries by `name` that would violate the `quantity` rule (e.g., two "Margherita Pizza" entries summing to more than 10 quantity).
-  * **Database Transactions**: All database operations for order creation must be transactional.
+- `customer_name`: required, 1-100 characters, no special characters except spaces, hyphens, apostrophes.
+- `order_type`: required, must be one of: 'dine_in', 'takeout', 'delivery'.
+- `items`: required array, minimum 1 item, maximum 20 items per order.
+- `item.name`: required, 1-50 characters.
+- `item.quantity`: required, integer, 1-10 per item.
+- `item.price`: required, decimal, 0.01-999.99.
+- `table_number`: required for `dine_in` orders, 1-100.
+- `delivery_address`: required for `delivery` orders, minimum 10 characters.
+- **Conflicting Fields**:
+    - `dine_in` orders must NOT include `delivery_address`.
+    - `delivery` orders must NOT include `table_number`.
+- **Duplicate Items**: Reject order if `items` contains duplicate entries by `name` that would violate the `quantity` rule (e.g., two "Margherita Pizza" entries summing to more than 10 quantity).
+- **Database Transactions**: All database operations for order creation must be transactional.
 
 #### Log Requirements
 
@@ -480,9 +480,9 @@ Use structured logging format as defined in the [Logging Format](#logging-format
 
 #### Flags
 
-  * `--mode`: Service mode (required: `order-service`)
-  * `--port`: HTTP port for REST API (default: 3000)
-  * `--max-concurrent`: Maximum concurrent orders (default: 50).
+- `--mode`: Service mode (required: `order-service`)
+- `--port`: HTTP port for REST API (default: 3000)
+- `--max-concurrent`: Maximum concurrent orders (default: 50).
 
 #### Worked Example
 
@@ -516,41 +516,41 @@ curl -X POST http://localhost:3000/orders \
 
 #### Order Type Processing
 
-  * **dine_in:**
-      * Requires `table_number`.
-      * Shorter cooking time (8 seconds).
-  * **takeout:**
-      * Standard processing.
-      * Medium cooking time (10 seconds).
-  * **delivery:**
-      * Requires `delivery_address`.
-      * Longer cooking time (12 seconds).
+- **dine_in:**
+    - Requires `table_number`.
+    - Shorter cooking time (8 seconds).
+- **takeout:**
+    - Standard processing.
+    - Medium cooking time (10 seconds).
+- **delivery:**
+    - Requires `delivery_address`.
+    - Longer cooking time (12 seconds).
 
 #### Worker Specialization
 
-  * Workers can be configured to only accept certain types of orders using the `--order-types` flag. If a worker receives an order it cannot process, it must negatively acknowledge the message (`basic.nack`) and requeue it so another worker can pick it up.
+- Workers can be configured to only accept certain types of orders using the `--order-types` flag. If a worker receives an order it cannot process, it must negatively acknowledge the message (`basic.nack`) and requeue it so another worker can pick it up.
 
 ### Kitchen Worker
 
 #### Incoming Message Format
 
-  * **Queue:** `kitchen_queue` (or specialized queues like `kitchen_delivery_queue`)
-  * **Format:** See [Order Message](#order-message) section
+- **Queue:** `kitchen_queue` (or specialized queues like `kitchen_delivery_queue`)
+- **Format:** See [Order Message](#order-message) section
 
 #### Processing Logic
 
 1.  **Consume Message:** Consume an order message from a bound kitchen queue.
 2.  **Process Order:**
-      * Update the order's `status` to `cooking` in the `orders` table.
-      * Log the status change in the `order_status_log` table.
-      * Publish a `status_update` message to the `notifications_fanout` exchange.
+    - Update the order's `status` to `cooking` in the `orders` table.
+    - Log the status change in the `order_status_log` table.
+    - Publish a `status_update` message to the `notifications_fanout` exchange.
 3.  **Simulate Cooking:** Simulate the cooking process with a configurable duration.
 4.  **Update Status to 'ready':**
-      * Update the order's `status` to `ready` in the `orders` table.
-      * Update the `completed_at` timestamp.
-      * Increment the `orders_processed` counter for the worker in the `workers` table.
-      * Log the status change in the `order_status_log` table.
-      * Publish a `status_update` message to the `notifications_fanout` exchange.
+    - Update the order's `status` to `ready` in the `orders` table.
+    - Update the `completed_at` timestamp.
+    - Increment the `orders_processed` counter for the worker in the `workers` table.
+    - Log the status change in the `order_status_log` table.
+    - Publish a `status_update` message to the `notifications_fanout` exchange.
 5.  **Acknowledge Receipt:** Acknowledge the message to RabbitMQ (`basic.ack`).
 6.  **Handle Processing Failure:** If any step in processing fails (e.g., database error, message publish error), reject the message with `basic.nack(requeue=true)` to return it to the queue for redelivery.
 
@@ -560,9 +560,9 @@ Use structured logging format as defined in the [Logging Format](#logging-format
 
 #### Relevant Flags
 
-  * `--port`: HTTP port for REST API (default: 3001)
-  * `--worker-name`: Unique name for the worker (required).
-  * `--order-types`: Comma-separated list of order types the worker can process (e.g., `dine_in,takeout`).
+- `--port`: HTTP port for REST API (default: 3001)
+- `--worker-name`: Unique name for the worker (required).
+- `--order-types`: Comma-separated list of order types the worker can process (e.g., `dine_in,takeout`).
 
 #### Worked Example
 
@@ -584,28 +584,28 @@ $ curl http://localhost:3001/workers/status
 
 #### Worker Management
 
-  * **Registration:** When a `kitchen-worker` starts, it should register itself in the `workers` table in the database.
-  * **Status Tracking:** The worker's status (`online`, `offline`, `processing`) and `last_seen` should be updated regularly. 
-      * `online` indicates the worker is running and ready to receive orders. 
-      * `processing` should be set when the worker is actively handling an order.
-      * `offline` should be set during graceful shutdown.
+- **Registration:** When a `kitchen-worker` starts, it should register itself in the `workers` table in the database.
+- **Status Tracking:** The worker's status (`online`, `offline`, `processing`) and `last_seen` should be updated regularly. 
+    - `online` indicates the worker is running and ready to receive orders. 
+    - `processing` should be set when the worker is actively handling an order.
+    - `offline` should be set during graceful shutdown.
 
 #### Heartbeat & Offline Detection
 
-  * Each `kitchen-worker` sends a heartbeat every `--heartbeat-interval` (default 30 seconds) by executing an `UPDATE` query on the `workers` table: `UPDATE workers SET last_seen = now(), status='online' WHERE name = <worker_name>`. This indicates the worker is alive and active.
-  * The `tracking-service` (or a dedicated monitoring component) should periodically check the `workers` table. A worker is considered `offline` if `now() - last_seen` is greater than `2 * --heartbeat-interval`.
+- Each `kitchen-worker` sends a heartbeat every `--heartbeat-interval` (default 30 seconds) by executing an `UPDATE` query on the `workers` table: `UPDATE workers SET last_seen = now(), status='online' WHERE name = <worker_name>`. This indicates the worker is alive and active.
+- The `tracking-service` (or a dedicated monitoring component) should periodically check the `workers` table. A worker is considered `offline` if `now() - last_seen` is greater than `2 * --heartbeat-interval`.
 
 #### Load Balancing
 
-  * **Round-Robin:** By default, RabbitMQ will distribute orders to available workers in a round-robin fashion.
-  * **Priority Queues:** If queues are configured with `x-max-priority`, RabbitMQ delivers higher-priority messages before lower-priority regardless of round-robin.
-  * **Worker Specialization:** Workers can be configured to only accept certain types of orders using the `--order-types` flag.
+- **Round-Robin:** By default, RabbitMQ will distribute orders to available workers in a round-robin fashion.
+- **Priority Queues:** If queues are configured with `x-max-priority`, RabbitMQ delivers higher-priority messages before lower-priority regardless of round-robin.
+- **Worker Specialization:** Workers can be configured to only accept certain types of orders using the `--order-types` flag.
 
 #### Redelivery Algorithm
 
-  * **Prefetch Count:** Each `kitchen-worker` should configure its RabbitMQ consumer with `basic.qos(prefetch_count=N)` (where N is the `--prefetch` flag, default 1). This limits the number of unacknowledged messages a worker can receive at a time.
-  * **Clean Disconnection:** If a worker disconnects cleanly (e.g., graceful shutdown), it should `basic.nack(requeue=true)` any outstanding unacknowledged deliveries. This ensures messages are returned to the queue for other workers.
-  * **Unclean Disconnection/Crash:** If a worker crashes or disconnects uncleanly, RabbitMQ will automatically re-queue any unacknowledged messages after a timeout, making them available to other workers.
+- **Prefetch Count:** Each `kitchen-worker` should configure its RabbitMQ consumer with `basic.qos(prefetch_count=N)` (where N is the `--prefetch` flag, default 1). This limits the number of unacknowledged messages a worker can receive at a time.
+- **Clean Disconnection:** If a worker disconnects cleanly (e.g., graceful shutdown), it should `basic.nack(requeue=true)` any outstanding unacknowledged deliveries. This ensures messages are returned to the queue for other workers.
+- **Unclean Disconnection/Crash:** If a worker crashes or disconnects uncleanly, RabbitMQ will automatically re-queue any unacknowledged messages after a timeout, making them available to other workers.
 
 #### Log Requirements
 
@@ -613,16 +613,16 @@ Use structured logging format as defined in the [Logging Format](#logging-format
 
 #### Config / Flags
 
-  * `--worker-name`: Unique worker name (required).
-  * `--order-types`: Comma-separated order types to process.
-  * `--heartbeat-interval`: Interval in seconds for sending worker heartbeats (default: 30).
-  * `--prefetch`: RabbitMQ prefetch count for the worker (default: 1).
+- `--worker-name`: Unique worker name (required).
+- `--order-types`: Comma-separated order types to process.
+- `--heartbeat-interval`: Interval in seconds for sending worker heartbeats (default: 30).
+- `--prefetch`: RabbitMQ prefetch count for the worker (default: 1).
 
 #### Validation Rules & Edge Cases
 
-  * **Duplicate Worker Name**: If the `INSERT` into `workers` violates name uniqueness, log `ERROR` and exit with status code `1`.
-  * **Graceful Shutdown**: Upon receiving a shutdown signal (e.g., `SIGINT`, `SIGTERM`), a worker should immediately stop accepting new orders from the queue. It must then finish processing any in-flight order, set its status to `offline` in the `workers` table, attempt to `basic.nack(requeue=true)` any unacknowledged messages, and then gracefully exit. This ensures that no work is lost and the system state remains consistent.
-  * **Database Unreachable**: Handle scenarios where the database is temporarily unreachable during heartbeat updates or registration. Implement retry mechanisms (e.g., three attempts with exponential back-off starting at 1 second, capped at 30 seconds) for database write operations.
+- **Duplicate Worker Name**: If the `INSERT` into `workers` violates name uniqueness, log `ERROR` and exit with status code `1`.
+- **Graceful Shutdown**: Upon receiving a shutdown signal (e.g., `SIGINT`, `SIGTERM`), a worker should immediately stop accepting new orders from the queue. It must then finish processing any in-flight order, set its status to `offline` in the `workers` table, attempt to `basic.nack(requeue=true)` any unacknowledged messages, and then gracefully exit. This ensures that no work is lost and the system state remains consistent.
+- **Database Unreachable**: Handle scenarios where the database is temporarily unreachable during heartbeat updates or registration. Implement retry mechanisms (e.g., three attempts with exponential back-off starting at 1 second, capped at 30 seconds) for database write operations.
 
 ### Tracking Service
 
@@ -630,10 +630,10 @@ This service provides HTTP API endpoints for querying order status, history, and
 
 #### API Endpoints
 
-  * **`GET /orders/{order_number}/status`:**
+- **`GET /orders/{order_number}/status`:**
 
-      * **Purpose:** To get the current status of a specific order.
-      * **Response Format:**
+    - **Purpose:** To get the current status of a specific order.
+    - **Response Format:**
         ```json
         {
           "order_number": "ORD_20241216_001",
@@ -644,10 +644,10 @@ This service provides HTTP API endpoints for querying order status, history, and
         }
         ```
 
-  * **`GET /orders/{order_number}/history`:**
+- **`GET /orders/{order_number}/history`:**
 
-      * **Purpose:** To get the full status history of an order.
-      * **Response Format:**
+    - **Purpose:** To get the full status history of an order.
+    - **Response Format:**
         ```json
         [
           {"status": "received", "timestamp": "2024-12-16T10:30:00Z", "changed_by": "order-service"},
@@ -655,10 +655,10 @@ This service provides HTTP API endpoints for querying order status, history, and
         ]
         ```
 
-  * **`GET /workers/status`:**
+- **`GET /workers/status`:**
 
-      * **Purpose:** To get the status of all registered kitchen workers.
-      * **Response Format:**
+    - **Purpose:** To get the status of all registered kitchen workers.
+    - **Response Format:**
         ```json
         [
           {"worker_name": "chef_mario", "status": "online", "orders_processed": 5, "last_seen": "2024-12-16T10:35:00Z"},
@@ -668,8 +668,8 @@ This service provides HTTP API endpoints for querying order status, history, and
 
 #### Flags
 
-  * `--mode`: Service mode (required: `tracking-service`)
-  * `--port`: HTTP port for REST API (default: 3002)
+- `--mode`: Service mode (required: `tracking-service`)
+- `--port`: HTTP port for REST API (default: 3002)
 
 ### Notification Service
 
