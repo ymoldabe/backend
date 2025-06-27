@@ -84,7 +84,7 @@ Your application will consist of four main services, a database, and a message b
 
 ```sql
 create table orders (
-    "id"                SERIAL PRIMARY KEY,
+    "id"                serial        primary key,
     "created_at"        timestamptz   not null    default now(),
     "updated_at"        timestamptz   not null    default now(),
     "number"            text          unique not null,
@@ -107,9 +107,9 @@ create table orders (
 
 ```sql
 create table order_items (
-    "id"          SERIAL PRIMARY KEY,
+    "id"          serial        primary key,
     "created_at"  timestamptz   not null    default now(),
-    "order_id"    integer          references orders(id),
+    "order_id"    integer       references orders(id),
     "name"        text          not null,
     "quantity"    integer       not null,
     "price"       decimal(8,2)  not null
@@ -122,9 +122,9 @@ create table order_items (
 
 ```sql
 create table order_status_log (
-    "id"          SERIAL PRIMARY KEY,
+    "id"          serial        primary key,
     "created_at"  timestamptz   not null    default now(),
-    "order_id"    integer          references orders(id),
+    "order_id"    integer       references orders(id),
     "status"      text,
     "changed_by"  text,
     "changed_at"  timestamptz   default current_timestamp,
@@ -138,7 +138,7 @@ create table order_status_log (
 
 ```sql
 create table workers (
-    "id"                SERIAL PRIMARY KEY,
+    "id"                serial      primary key,
     "created_at"        timestamptz not null    default now(),
     "name"              text        unique not null,
     "type"              text        not null,
@@ -452,11 +452,11 @@ Create all required tables as specified in the Database Schema section. Each ser
 
 The system assigns a priority level (`10`, `5`, `1`) to each order. If an order matches multiple criteria, the highest applicable priority is assigned. This priority level is used in the routing key.
 
-| Priority | Criteria                                                              |
-| :------- | :-------------------------------------------------------------------- |
-| `10`   | Order total amount is greater than $100. |
-| `5` | Order total amount is between $50 and $100.                           |
-| `1`    | All other standard orders.                                          |
+| Priority | Criteria                                    |
+| :------- | :------------------------------------------ |
+| `10`     | Order total amount is greater than $100.    |
+| `5`      | Order total amount is between $50 and $100. |
+| `1`      | All other standard orders.                  |
 
 #### Validation Rules & Edge Cases
 
