@@ -9,22 +9,19 @@
 
 ## Abstract
 
-In this project, you will build a restaurant order management system using RabbitMQ as a message broker and PostgreSQL for persistent storage. The system simulates a real restaurant workflow where orders go through various processing stages: received -> cooking -> ready -> delivered.
-
-Similar systems are used in real restaurants and food delivery services. For example, when you order food through an app, your order goes through an analogous processing system with task distribution among different staff members.
-
-This project will teach you that before you start writing code, you should think through the system architecture, understand how components will interact, and only then proceed to implementation.
+In this project, you will build a distributed restaurant order management system. Using Go, you will create several microservices that communicate asynchronously via a RabbitMQ message broker, with order data persisted in a PostgreSQL database. This system will simulate a real-world restaurant workflow, from an order being placed via an API, to it being cooked by a kitchen worker, and finally its status being tracked. This project teaches a fundamental lesson in modern software engineering: think about the architecture first. Before writing a single line of code, you must design how services will interact, how data will flow, and how the system can scale.
 
 ## Context
 
-> You can't polish your way out of bad architecture.
+> Good architecture makes the system easy to understand, easy to develop, easy to maintain, and easy to deploy. The ultimate goal is to minimize the lifetime cost of the system and to maximize programmer productivity.
 >
+> — Robert C. Martin (Uncle Bob)
 
-The challenge we've chosen may seem unique, but at its core lies the common structure of many other distributed systems: data comes in, gets processed by various components, and is passed along the chain.
+Have you ever ordered a pizza through a delivery app and watched its status change from "Order Placed" to "In the Kitchen" and finally "Out for Delivery"? What seems like a simple status tracker is actually a complex dance between multiple independent systems. The web app where you place your order isn't directly connected to the tablet in the kitchen.
 
-Our specific task is to create a reliable order processing system that can scale horizontally. If we simply processed orders sequentially in a single thread, the system would quickly become a bottleneck as load increases.
+This is the power of microservices and message queues. The challenge is to create a reliable order processing system that can handle a high volume of orders without slowing down. A single, monolithic application would quickly become a bottleneck. Instead, we distribute the work. The `Order Service` takes your order, the `Kitchen Service` cooks it, and a `Notification Service` keeps you updated. They don't talk to each other directly; they pass messages through a central mailroom, RabbitMQ. This ensures that even if the kitchen is busy, the order service can still take new orders.
 
-To achieve more efficient results, we need a distributed architecture with separation of concerns, where each component performs its specific function.
+In this project, you will build the core of such a system. You will learn how to design services that have a single responsibility and how to orchestrate their collaboration to create a robust and scalable application.
 
 **Message Queue Patterns**
 
@@ -32,7 +29,7 @@ A smart way to solve this type of problem is using message queue patterns. This 
 
 **Work Queue Pattern**
 - One producer sends tasks to a queue
-- Multiple consumers wait for the task to arrive, but only one receives it.
+- Multiple consumers wait for the task to arrive, but only one receives it
 - Each task is processed by exactly one consumer
 - Provides load distribution among workers
 
@@ -46,59 +43,38 @@ A smart way to solve this type of problem is using message queue patterns. This 
 - Allows creating complex processing schemes
 - Provides flexibility in defining recipients
 
-Order processing algorithm using queues:
+## System Architecture Overview
+
+Your application will consist of four main services, a database, and a message broker. They interact as follows:
 
 ```
-1. Client places order through API
-2. Order is placed in kitchen_queue
-3. Available cook takes order from queue
-4. After cooking, order is directed to quality_queue
-5. Quality controller checks the order
-6. Ready order is placed in packaging_queue
-7. Packager prepares order for delivery
-8. Order is directed to courier through delivery_queue
-9. All interested parties receive status notifications
+                                +------------------+
+                                |   PostgreSQL DB  |
+                                | (Order Storage)  |
+                                +--+-------------+-+
+                                   ^             ^
+           (Writes & Reads)        |             |        (Writes & Reads)
+                                   |             |
++------------+        +----------+ v             v +---------------+
+| HTTP Client|------->|  Order   |               | Kitchen       |
+| (e.g. curl)|        |  Service |               | Service       |
++------------+        +----------+               +--+------------+
+                         |                         ^
+                         | (Publishes New Order)   | (Publishes Status Update)
+                         v                         |
+                   +-----+-------------------------+-----+
+                   |                                     |
+                   |         RabbitMQ Message Broker     |
+                   |                                     |
+                   +-------------------------------------+
+                              |                      |
+                              | (Status Updates)     | (Status Updates)
+                              v                      v
+                        +-----+-----------+    +-----+-----------+
+                        | Notification    |    | Tracking        |
+                        | Service         |    | Service         |
+                        +-----------------+    +-----------------+
 ```
-
-**Data Structure and Architecture**
-
-Let's consider our program requirements. We aim to process hundreds of orders simultaneously, support multiple workers, and ensure response times in seconds, not minutes. At this scale, we cannot afford inefficient algorithms or architecture.
-
-The order processing workflow requires coordination between multiple components. This means we need a smart way to organize interaction between services. We're looking for a structure that can efficiently represent order state and its transitions between stages.
-
-Our program will work in microservice mode: each component (cook, quality controller, packager, courier) works independently but is coordinated through RabbitMQ. Each service must quickly receive appropriate tasks and send results further down the chain.
-
-Let's call the combination of an order and its current state a "processing stage" - this is a common term in workflow systems. We'll need to track transitions between stages and ensure reliable message delivery.
-
-This approach gives us a clear path forward. By focusing on these key requirements, we can design a solution that is both elegant and efficient.
-
-## System Architecture
-
-### Service Responsibilities
-
-**Order Service**
-- Accept HTTP requests for new orders
-- Validate order data and calculate totals
-- Store orders in PostgreSQL
-- Publish orders to RabbitMQ kitchen queue
-- Provide order status API endpoints
-
-**Kitchen Workers**
-- Consume orders from kitchen queue
-- Simulate cooking process
-- Update order status in database
-- Publish status updates to notification exchange
-
-**Tracking Service**
-- Monitor order status changes
-- Handle status update requests
-- Provide centralized status tracking
-- Log all status transitions
-
-**Notification Subscriber**
-- Listen for status update notifications
-- Filter notifications by customer
-- Display real-time status updates
 
 ## Database Schema
 
@@ -178,31 +154,36 @@ create table workers (
 
 **Exchange Types Explained:**
 
-**Direct Exchange (`orders_direct`)**: Routes messages to queues based on exact routing key match. Used for targeted order routing where each order type goes to its specific queue. Only workers listening to that exact routing key will receive the message.
+**Topic Exchange (`orders_topic`)**: Routes messages to queues based on pattern matching with routing keys. Used for flexible order routing where different order types and priorities can be routed to specialized queues.
 
 **Fanout Exchange (`notifications_fanout`)**: Broadcasts all messages to every queue bound to it, ignoring routing keys. Used for notifications where all subscribers need to receive status updates regardless of their specific interests.
 
 ```
 Exchanges:
-├── orders_direct (type: direct, durable: true)
-│   └── Routing Keys:
-│       ├── kitchen.dine-in
-│       ├── kitchen.takeout
-│       └── kitchen.delivery
+├── orders_topic (type: topic, durable: true)
+│   └── Routing Keys (examples):
+│       ├── kitchen.dine-in.high
+│       ├── kitchen.takeout.medium
+│       └── kitchen.delivery.low
 │
 └── notifications_fanout (type: fanout, durable: true)
     └── Broadcasts to all subscribers
 
 Queues:
 ├── kitchen_queue (durable: true, x-max-priority: 10)
+│   └── Bound to orders_topic with routing key: kitchen.order
 │   └── Read by: General kitchen workers
 ├── kitchen_dine_in_queue (durable: true, x-max-priority: 10)
+│   └── Bound to orders_topic with routing key: kitchen.dine-in.*
 │   └── Read by: Dine-in specialized workers
 ├── kitchen_takeout_queue (durable: true, x-max-priority: 10)
+│   └── Bound to orders_topic with routing key: kitchen.takeout.*
 │   └── Read by: Takeout specialized workers
 ├── kitchen_delivery_queue (durable: true, x-max-priority: 10)
+│   └── Bound to orders_topic with routing key: kitchen.delivery.*
 │   └── Read by: Delivery specialized workers
 └── notifications_queue (durable: true, auto-delete: false)
+    └── Bound to notifications_fanout
     └── Read by: Notification subscribers, customer apps
 ```
 
@@ -212,7 +193,7 @@ Queues:
 **Purpose**: Contains complete order information for kitchen processing
 **Sent to**: Kitchen queues (kitchen_queue, kitchen_dine_in_queue, etc.)
 **Read by**: Kitchen Workers
-**Routing**: Through orders_direct exchange using routing keys like "kitchen.delivery"
+**Routing**: Through orders_topic exchange using routing keys like "kitchen.delivery.high"
 
 ```json
 {
@@ -237,7 +218,7 @@ Queues:
 #### Status Update Message
 **Purpose**: Notifies all interested parties about order status changes
 **Sent to**: notifications_fanout exchange
-**Read by**: Notification Subscribers, terminal
+**Read by**: Notification Subscribers
 **Routing**: Broadcast to all queues bound to notifications_fanout exchange
 
 ```json
@@ -253,17 +234,35 @@ Queues:
 
 ## Logging Format
 
-All services must implement structured logging in JSON format:
+This structured logging format must be used by all services. Consistent logging is vital for debugging, monitoring, and auditing the system.
 
+### JSON Log Format
+
+All services must implement structured logging in JSON format.
+
+**Mandatory Core Fields:**
+The following keys must always be present in every log entry:
+*   `timestamp`: The time the log entry was created.
+*   `level`: The log level (e.g., INFO, ERROR).
+*   `service`: The name of the service emitting the log (e.g., `order-service`, `kitchen-worker`).
+*   `action`: A concise, machine-readable string describing the event (e.g., `order_received`, `db_error`).
+*   `message`: A human-readable description of the event.
+*   `hostname`: The hostname or unique identifier of the module emitting the log.
+*   `request_id`: A unique identifier for correlating requests/operations across multiple services.
+
+**Format Example:**
 ```json
 {
   "timestamp": "2024-12-16T10:30:15.123Z",
   "level": "INFO",
   "service": "order-service",
-  "worker_name": "chef_mario",
-  "order_number": "ORD_20241216_001",
+  "version": "abcdef12345",
+  "hostname": "order-service-789abc",
+  "request_id": "a1b2c3d4e5f6",
   "action": "order_received",
   "message": "Order received and queued for processing",
+  "worker_name": "chef_mario",
+  "order_number": "ORD_20241216_001",
   "duration_ms": 45,
   "details": {
     "customer_name": "John Doe",
@@ -274,37 +273,40 @@ All services must implement structured logging in JSON format:
 }
 ```
 
-### Log Levels Usage:
+**Error Object Shape:**
+For `ERROR` level logs, an `error` object must be included with the following structure:
+```json
+{
+  "timestamp": "2024-12-16T10:35:00.000Z",
+  "level": "ERROR",
+  "service": "kitchen-worker",
+  "version": "abcdef12345",
+  "hostname": "kitchen-worker-xyz789",
+  "request_id": "a1b2c3d4e5f6",
+  "action": "db_query_failed",
+  "message": "Failed to retrieve order from database",
+  "error": {
+    "type": "sql.ErrNoRows",
+    "msg": "query failed: no rows in result set",
+    "stack": "internal/db/order.go:120"
+  }
+}
+```
 
-**ERROR**: 
-- Database connection failures
-- RabbitMQ connection drops
-- Order validation failures (invalid data, missing required fields)
-- Message publish/consume errors
-- System crashes or unrecoverable errors
+### Log Levels Usage
 
-**WARN**: 
-- Message retry attempts (when worker is temporarily unavailable)
-- Database query timeout warnings
-- Configuration issues (missing optional parameters, using defaults)
-- Order processing delays (cooking time exceeded)
-- Worker disconnection/reconnection events
+*   **ERROR:** Database connection failures, RabbitMQ connection drops, order validation failures, message publish/consume errors, system crashes.
+*   **WARN:** Message retry attempts, database query timeout warnings, configuration issues, order processing delays, worker disconnection/reconnection events.
+*   **INFO:** Order lifecycle events (received, cooking started, completed), worker status changes, service startup/shutdown, normal business operations, performance milestones.
+*   **DEBUG:** Detailed message content, database query execution details, internal processing steps, performance metrics, development and troubleshooting information.
 
-**INFO**: 
-- Order lifecycle events (received, cooking started, completed)
-- Worker status changes (connected, disconnected, processing order)
-- Service startup/shutdown
-- Normal business operations
-- Performance milestones (orders per hour, average processing time)
-
-**DEBUG**: 
-- Detailed message content (full order JSON)
-- Database query execution details
-- Internal processing steps
-- Performance metrics (exact processing times, queue lengths)
-- Development and troubleshooting information
+### Log Location and Format Rules:
+*   All logs must be emitted as single-line JSON (no pretty printing) to `stdout`. This is crucial for containerized environments where log collectors typically consume `stdout`.
+*   Logs must not contain Personally Identifiable Information (PII), such as `customer_address`, payment information, or other sensitive data.
+*   All log messages must be UTF-8 encoded, and newlines within log fields must be properly escaped.
 
 ### Required Log Events:
+
 - **Order received/processed/completed** (INFO level)
 - **Worker connected/disconnected** (INFO level)
 - **Status changes** (INFO level)
@@ -313,22 +315,22 @@ All services must implement structured logging in JSON format:
 
 ## Configuration Management
 
-### Database Configuration
-Configuration is stored in environment variables and command-line flags. The system creates a configuration file at startup:
+A clear configuration strategy is essential for deploying and running the services in different environments.
+
+### Configuration Files
+
+The system should be able use configuration files for database and RabbitMQ connections.
 
 ```yaml
-# config/database.yaml (auto-generated during --setup-db)
+# Database Configuration
 database:
   host: localhost
   port: 5432
   user: restaurant_user
   password: restaurant_pass
   database: restaurant_db
-```
 
-### RabbitMQ Configuration  
-```yaml
-# config/rabbitmq.yaml (auto-generated during --setup-queues)
+# RabbitMQ Configuration  
 rabbitmq:
   host: localhost
   port: 5672
@@ -336,14 +338,23 @@ rabbitmq:
   password: guest
   vhost: /
   exchanges:
-    orders_direct:
-      type: direct
+    orders_topic:
+      type: topic
       durable: true
     notifications_fanout:
       type: fanout
       durable: true
   queues:
     kitchen_queue:
+      durable: true
+      max_priority: 10
+    kitchen_dine_in_queue:
+      durable: true
+      max_priority: 10
+    kitchen_takeout_queue:
+      durable: true
+      max_priority: 10
+    kitchen_delivery_queue:
       durable: true
       max_priority: 10
     notifications_queue:
