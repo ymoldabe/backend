@@ -5,11 +5,8 @@
 - Message Queue Systems
 - RabbitMQ Integration
 - Concurrent Programming
+- Microservices Architecture
 
 ## Abstract
 
-In this project, you will build a restaurant order management system using RabbitMQ as a message broker. The system simulates a real restaurant workflow where orders go through various processing stages: received -> cooking -> ready -> delivered.
-
-Similar systems are used in real restaurants and food delivery services. For example, when you order food through an app, your order goes through an analogous processing system with task distribution among different staff members.
-
-This project will teach you that before you start writing code, you should think through the system architecture, understand how components will interact, and only then proceed to implementation.
+In this project, you will build a distributed restaurant order management system. Using Go, you will create several microservices that communicate asynchronously via a RabbitMQ message broker, with order data persisted in a PostgreSQL database. This system will simulate a real-world restaurant workflow, from an order being placed via an API, to it being cooked by a kitchen worker, and finally its status being tracked. This project teaches a fundamental lesson in modern software engineering: think about the architecture first. Before writing a single line of code, you must design how services will interact, how data will flow, and how the system can scale.

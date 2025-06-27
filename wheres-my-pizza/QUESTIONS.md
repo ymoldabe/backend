@@ -7,10 +7,6 @@
 - [ ] Yes
 - [ ] No
 
-### Does the program exit with a non-zero status code and clear error message when invalid arguments are provided?
-- [ ] Yes
-- [ ] No
-
 ### Does the program handle runtime errors gracefully without crashing?
 - [ ] Yes
 - [ ] No
@@ -36,11 +32,7 @@
 - [ ] Yes
 - [ ] No
 
-### Does the system follow proper separation of concerns between services?
-- [ ] Yes
-- [ ] No
-
-## Database Setup and Schema
+## Database Schema
 ### Does the program correctly create all required database tables (orders, order_items, order_status_log, workers)?
 - [ ] Yes
 - [ ] No
@@ -49,7 +41,7 @@
 - [ ] Yes
 - [ ] No
 
-### Does the order_items table properly reference orders with foreign key?
+### Does the order_items table properly reference orders with a foreign key?
 - [ ] Yes
 - [ ] No
 
@@ -62,7 +54,7 @@
 - [ ] No
 
 ## RabbitMQ Configuration
-### Does the program correctly set up required exchanges (orders_direct, notifications_fanout)?
+### Does the program correctly set up required exchanges (orders_topic, notifications_fanout)?
 - [ ] Yes
 - [ ] No
 
@@ -70,11 +62,7 @@
 - [ ] Yes
 - [ ] No
 
-### Does the program configure priority queues with x-max-priority parameter?
-- [ ] Yes
-- [ ] No
-
-### Does the program implement proper routing keys for different order types?
+### Does the program configure priority queues with the x-max-priority parameter?
 - [ ] Yes
 - [ ] No
 
@@ -82,7 +70,7 @@
 - [ ] Yes
 - [ ] No
 
-## Order Processing
+## Order Service
 ### Does the Order Service accept HTTP POST requests for new orders?
 - [ ] Yes
 - [ ] No
@@ -95,7 +83,7 @@
 - [ ] Yes
 - [ ] No
 
-### Does the program generate proper order numbers in ORD_YYYYMMDD_NNN format?
+### Does the program generate proper order numbers in ORD_YYYYMMDD_NNN format using UTC time?
 - [ ] Yes
 - [ ] No
 
@@ -103,11 +91,11 @@
 - [ ] Yes
 - [ ] No
 
-### Does the program publish order messages to RabbitMQ kitchen queue?
+### Does the program publish order messages to the RabbitMQ kitchen queue?
 - [ ] Yes
 - [ ] No
 
-## Kitchen Worker Implementation
+## Kitchen Worker
 ### Do Kitchen Workers consume orders from the correct queues?
 - [ ] Yes
 - [ ] No
@@ -116,7 +104,7 @@
 - [ ] Yes
 - [ ] No
 
-### Do Kitchen Workers simulate cooking process with configurable duration?
+### Do Kitchen Workers simulate the cooking process with a configurable duration?
 - [ ] Yes
 - [ ] No
 
@@ -128,12 +116,16 @@
 - [ ] Yes
 - [ ] No
 
-## Multiple Workers Support
+### Do specialized workers requeue messages they cannot process?
+- [ ] Yes
+- [ ] No
+
+## Multiple Workers & Load Balancing
 ### Does the program support multiple kitchen workers simultaneously?
 - [ ] Yes
 - [ ] No
 
-### Does the program distribute orders evenly among available workers using round-robin?
+### Does the program distribute orders among available workers?
 - [ ] Yes
 - [ ] No
 
@@ -141,108 +133,42 @@
 - [ ] Yes
 - [ ] No
 
-### Does the program track worker status and performance metrics?
+### Does the program track worker status (online, offline, processing) and performance metrics?
 - [ ] Yes
 - [ ] No
 
-### Does the program handle worker disconnections gracefully?
+### Does the program handle worker disconnections gracefully (graceful shutdown)?
 - [ ] Yes
 - [ ] No
 
-## Order Status Tracking
-### Does the program track all status transitions in order_status_log table?
+## Tracking Service
+### Does the Tracking Service provide a REST API endpoint to get the current status of a specific order?
 - [ ] Yes
 - [ ] No
 
-### Does the program validate status transitions to prevent invalid changes?
+### Does the Tracking Service provide a REST API endpoint to get the full status history of an order?
 - [ ] Yes
 - [ ] No
 
-### Does the program provide REST API endpoints for status queries?
+### Does the Tracking Service provide a REST API endpoint to get the status of all registered kitchen workers?
 - [ ] Yes
 - [ ] No
 
-### Does the program provide order history through API endpoints?
+## Notification Service
+### Does the Notification Service use a fanout exchange for broadcasting status updates?
 - [ ] Yes
 - [ ] No
 
-### Does the program implement atomic status updates (database + message)?
+### Does the Notification Service consume messages from the notifications_queue?
 - [ ] Yes
 - [ ] No
 
-## Notification System
-### Does the program use fanout exchange for broadcasting status updates?
+### Does the Notification Service display notifications in a human-readable format?
 - [ ] Yes
 - [ ] No
 
-### Does the program send real-time notifications about status changes?
-- [ ] Yes
-- [ ] No
-
-### Does the program support customer-specific notification filtering?
-- [ ] Yes
-- [ ] No
-
-### Does the program log all notification deliveries?
-- [ ] Yes
-- [ ] No
-
-### Does the program handle notification delivery failures gracefully?
-- [ ] Yes
-- [ ] No
-
-## Order Types and Routing
-### Does the program support three distinct order types (dine-in, takeout, delivery)?
-- [ ] Yes
-- [ ] No
-
-### Does the program enforce different validation rules for each order type?
-- [ ] Yes
-- [ ] No
-
-### Does the program implement different cooking times for different order types?
-- [ ] Yes
-- [ ] No
-
-### Does the program route orders to specialized worker queues based on type?
-- [ ] Yes
-- [ ] No
-
-### Does the program validate table numbers for dine-in and addresses for delivery orders?
-- [ ] Yes
-- [ ] No
-
-## Priority Queue Implementation
-### Does the program automatically assign priorities based on order characteristics?
-- [ ] Yes
-- [ ] No
-
-### Does the program give VIP customers priority 10 (high priority)?
-- [ ] Yes
-- [ ] No
-
-### Does the program assign priority 5 for large orders ($50-$100)?
-- [ ] Yes
-- [ ] No
-
-### Do workers process orders in priority order (high priority first)?
-- [ ] Yes
-- [ ] No
-
-### Does the program log priority assignments in order_status_log?
-- [ ] Yes
-- [ ] No
-
-## Configuration and Logging
-### Does the program properly read configuration from files and environment variables?
-- [ ] Yes
-- [ ] No
-
-### Does the configuration include PostgreSQL connection details?
-- [ ] Yes
-- [ ] No
-
-### Does the configuration include RabbitMQ connection details?
+## Logging and Configuration
+### Does the program properly read configuration from files?
 - [ ] Yes
 - [ ] No
 
@@ -254,75 +180,7 @@
 - [ ] Yes
 - [ ] No
 
-### Does the program log all required events (order lifecycle, worker status, errors)?
-- [ ] Yes
-- [ ] No
-
-## System Operation
-### Does the program implement graceful shutdown handling for all services?
-- [ ] Yes
-- [ ] No
-
-### Does the program display comprehensive usage information with `--help` flag?
-- [ ] Yes
-- [ ] No
-
-### Does the program handle database setup with `--setup-db` command?
-- [ ] Yes
-- [ ] No
-
-### Does the program handle RabbitMQ setup with `--setup-queues` command?
-- [ ] Yes
-- [ ] No
-
-### Does the program support all required operational modes?
-- [ ] Yes
-- [ ] No
-
-## API Implementation
-### Does the program implement order creation endpoint (POST /orders)?
-- [ ] Yes
-- [ ] No
-
-### Does the program implement order status query endpoint (GET /orders/{id}/status)?
-- [ ] Yes
-- [ ] No
-
-### Does the program implement order history endpoint (GET /orders/{id}/history)?
-- [ ] Yes
-- [ ] No
-
-### Does the program implement worker status monitoring endpoint (GET /workers/status)?
-- [ ] Yes
-- [ ] No
-
-### Do all API endpoints return proper HTTP status codes and error messages?
-- [ ] Yes
-- [ ] No
-
-## Message Handling
-### Does the program properly format order messages according to specification?
-- [ ] Yes
-- [ ] No
-
-### Does the program properly format status update messages according to specification?
-- [ ] Yes
-- [ ] No
-
-### Does the program ensure message persistence and durability?
-- [ ] Yes
-- [ ] No
-
-### Does the program handle message acknowledgments correctly?
-- [ ] Yes
-- [ ] No
-
-### Does the program implement proper error handling for failed message deliveries?
-- [ ] Yes
-- [ ] No
-
 ## Project Defense
-
 ### Can the team explain their microservices architecture decisions?
 - [ ] Yes
 - [ ] No
