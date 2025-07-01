@@ -15,193 +15,93 @@
 - [ ] Yes
 - [ ] No
 
-## Architecture
-### Is the application structured according to microservices architecture principles?
+## Program functionality
+### The Order Service accepts HTTP POST requests on /orders endpoint and validates input according to specified rules.
 - [ ] Yes
 - [ ] No
 
-### Does the application have clearly separated service responsibilities (Order Service, Kitchen Workers, Tracking Service, Notification Subscriber)?
+### The Order Service generates unique order numbers in format ORD_YYYYMMDD_NNN that reset daily.
 - [ ] Yes
 - [ ] No
 
-### Does the application implement proper message queue patterns (Work Queue, Publish/Subscribe, Routing)?
+### The Order Service calculates priority based on total amount (10 for >$100, 5 for $50-$100, 1 for others).
 - [ ] Yes
 - [ ] No
 
-### Are components properly decoupled through RabbitMQ message broker?
+### The Order Service stores orders, order items, and status logs in database within a single transaction.
 - [ ] Yes
 - [ ] No
 
-## Database Schema
-### Does the program correctly create all required database tables (orders, order_items, order_status_log, workers)?
+### The Order Service publishes order messages to RabbitMQ with correct routing keys and message properties.
 - [ ] Yes
 - [ ] No
 
-### Does the orders table contain all required fields with proper constraints?
+### The Kitchen Worker registers itself in the workers table and handles duplicate worker name scenarios correctly.
 - [ ] Yes
 - [ ] No
 
-### Does the order_items table properly reference orders with a foreign key?
+### The Kitchen Worker consumes messages from kitchen queues and processes orders according to specialization.
 - [ ] Yes
 - [ ] No
 
-### Does the order_status_log table track all status changes with timestamps?
+### The Kitchen Worker updates order status to 'cooking', simulates cooking time, then updates to 'ready'.
 - [ ] Yes
 - [ ] No
 
-### Does the workers table manage worker registration and monitoring?
+### The Kitchen Worker publishes status update messages to notifications_fanout exchange.
 - [ ] Yes
 - [ ] No
 
-## RabbitMQ Configuration
-### Does the program correctly set up required exchanges (orders_topic, notifications_fanout)?
+### The Kitchen Worker handles graceful shutdown by stopping consumption and updating status to 'offline'.
 - [ ] Yes
 - [ ] No
 
-### Does the program create all required queues with proper durability settings?
+### The Tracking Service provides read-only HTTP API for order status, history, and worker status.
 - [ ] Yes
 - [ ] No
 
-### Does the program configure priority queues with the x-max-priority parameter?
+### The Tracking Service returns proper HTTP status codes (404 for not found, 500 for server errors).
 - [ ] Yes
 - [ ] No
 
-### Does the program handle RabbitMQ connection failures and reconnection?
+### The Notification Service subscribes to status updates and displays human-readable notifications.
 - [ ] Yes
 - [ ] No
 
-## Order Service
-### Does the Order Service accept HTTP POST requests for new orders?
+### All services implement structured JSON logging with required fields (timestamp, level, service, action, message, hostname, request_id).
 - [ ] Yes
 - [ ] No
 
-### Does the program validate order data according to specified rules?
+### All services handle RabbitMQ reconnection scenarios and implement proper error handling.
 - [ ] Yes
 - [ ] No
 
-### Does the program calculate total amounts and assign priorities correctly?
+### All database operations are transactional where appropriate and handle connection failures.
 - [ ] Yes
 - [ ] No
 
-### Does the program generate proper order numbers in ORD_YYYYMMDD_NNN format using UTC time?
+### The system implements proper message acknowledgment (basic.ack, basic.nack) patterns.
 - [ ] Yes
 - [ ] No
 
-### Does the program store orders in PostgreSQL within transactions?
+### All services can be configured via YAML configuration file for database and RabbitMQ settings.
 - [ ] Yes
 - [ ] No
 
-### Does the program publish order messages to the RabbitMQ kitchen queue?
+## Project presentation and code defense
+### Can the team clearly explain their microservices architecture, message flow, and design choices during the presentation?
 - [ ] Yes
 - [ ] No
 
-## Kitchen Worker
-### Do Kitchen Workers consume orders from the correct queues?
+### Can the team effectively demonstrate the complete order lifecycle from creation to completion?
 - [ ] Yes
 - [ ] No
 
-### Do Kitchen Workers update order status to 'cooking' when processing starts?
+### Can the team explain how they handle concurrent processing, message ordering, and failure scenarios?
 - [ ] Yes
 - [ ] No
 
-### Do Kitchen Workers simulate the cooking process with a configurable duration?
-- [ ] Yes
-- [ ] No
-
-### Do Kitchen Workers update order status to 'ready' upon completion?
-- [ ] Yes
-- [ ] No
-
-### Do Kitchen Workers acknowledge messages only after successful database updates?
-- [ ] Yes
-- [ ] No
-
-### Do specialized workers requeue messages they cannot process?
-- [ ] Yes
-- [ ] No
-
-## Multiple Workers & Load Balancing
-### Does the program support multiple kitchen workers simultaneously?
-- [ ] Yes
-- [ ] No
-
-### Does the program distribute orders among available workers?
-- [ ] Yes
-- [ ] No
-
-### Does the program register workers in the PostgreSQL workers table?
-- [ ] Yes
-- [ ] No
-
-### Does the program track worker status (online, offline, processing) and performance metrics?
-- [ ] Yes
-- [ ] No
-
-### Does the program handle worker disconnections gracefully (graceful shutdown)?
-- [ ] Yes
-- [ ] No
-
-## Tracking Service
-### Does the Tracking Service provide a REST API endpoint to get the current status of a specific order?
-- [ ] Yes
-- [ ] No
-
-### Does the Tracking Service provide a REST API endpoint to get the full status history of an order?
-- [ ] Yes
-- [ ] No
-
-### Does the Tracking Service provide a REST API endpoint to get the status of all registered kitchen workers?
-- [ ] Yes
-- [ ] No
-
-## Notification Service
-### Does the Notification Service use a fanout exchange for broadcasting status updates?
-- [ ] Yes
-- [ ] No
-
-### Does the Notification Service consume messages from the notifications_queue?
-- [ ] Yes
-- [ ] No
-
-### Does the Notification Service display notifications in a human-readable format?
-- [ ] Yes
-- [ ] No
-
-## Logging and Configuration
-### Does the program properly read configuration from files?
-- [ ] Yes
-- [ ] No
-
-### Does the program use structured JSON logging throughout the application?
-- [ ] Yes
-- [ ] No
-
-### Do logs include contextual information like timestamps, service names, and order numbers?
-- [ ] Yes
-- [ ] No
-
-## Project Defense
-### Can the team explain their microservices architecture decisions?
-- [ ] Yes
-- [ ] No
-
-### Can the team explain how they implemented message queue patterns?
-- [ ] Yes
-- [ ] No
-
-### Can the team demonstrate understanding of RabbitMQ features used?
-- [ ] Yes
-- [ ] No
-
-### Can the team explain their database transaction handling approach?
-- [ ] Yes
-- [ ] No
-
-### Can the team explain their priority queue implementation?
-- [ ] Yes
-- [ ] No
-
-### Can the team demonstrate the system working with multiple workers?
+### Can the team show how different worker specializations and load balancing work in practice?
 - [ ] Yes
 - [ ] No
 
